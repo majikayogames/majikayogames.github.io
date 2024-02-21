@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>EZDraw</title>
+    <style>
+        /* canvas {
+            border: 1px solid black;
+        } */
+    </style>
+</head>
+
+<body>
+    <script src="ezdraw.js"></script>
+    <script>
+        let mainCanvas = ez.createCanvasAndAddToPage()
+        let rotatedCanvas = ez.createCanvasAndAddToPage()
+        let planeCanvas = ez.createCanvasAndAddToPage()
+        ez.canvas = mainCanvas;
+        //mainCanvas.style.opacity = 0.1;
+
+        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
+        ez.centerOrigin = true;
+
+        function drawAnimatedGrid(point, timeMs = 0) {
+            point = vec2(point)
+            ez.save()
+
+            ez.ctx.lineWidth = 1
+            ez.grid(1,50).stroke(0xbbbbbb)
+
+            ez.ctx.lineWidth = 1.5
+            ez.line(vec2(0,-1000), vec2(0,1000)).stroke("grey")
+            ez.line(vec2(-1000, 0), vec2(1000,0)).stroke("grey")
+
+            ez.arrow(vec2(0,0),vec2(0,1),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round"})
+            ez.arrow(vec2(0,0),vec2(1,0),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round"})
+
+
+            let numAdditionalArrowsNeeded = vec2(point).rounded()
+            const totalNeeded = Math.round(numAdditionalArrowsNeeded.x + numAdditionalArrowsNeeded.y);
+            const timePer = 500
+            const totalTime = timePer * totalNeeded
+            let xArrows = 0
+            let yArrows = 0
+            for(let i = 0; i < totalNeeded; i++) {
+                if(i * timePer > timeMs) break;
+                if(numAdditionalArrowsNeeded.x > 0) { // Skip x axis, will scale or slide it over in above anim
+                    if(xArrows > 0 || true){
+                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
+                        //console.log(numAdditionalArrowsNeeded)
+                        let myTime = timeMs - timePer*i
+                        let interp = lerpClamp(0, 1, (myTime / timePer));
+                        ez.arrow(arrowStart,arrowStart.add([interp,0]),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                    }
+                    numAdditionalArrowsNeeded.x--;
+                    xArrows++
+                }
+                else if(numAdditionalArrowsNeeded.y > 0) {
+                    if(yArrows === 0 && false) { // For first y, slide over from yaxis
+                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
+                        let myTime = timeMs - timePer*i
+                        let interp = lerpClamp(0, 1, (myTime / timePer));
+                        arrowStart.x = point.x * interp;
+                        ez.arrow(arrowStart,arrowStart.add([0,1]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                    }
+                    else {
+                        //console.log(numAdditionalArrowsNeeded)
+                        let myTime = timeMs - timePer*i
+                        let interp = lerpClamp(0, 1, (myTime / timePer));
+                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
+                        ez.arrow(arrowStart,arrowStart.add([0,interp]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                    }
+                    numAdditionalArrowsNeeded.y--;
+                    yArrows++
+                }
+            }
+            
+            ez.restore()
+        }
+
+        let start = Date.now()
+        let movingPoint = false
+        let rotatedAng = 0
+
+        ez.onMouseDown(() => {
+            movingPoint = ez.getMousePosWorld().sub(pt).length() < 0.2;
+        })
+        ez.onMouseDrag((delta) => {
+            if(movingPoint) {
+                pt = ez.getMousePosWorld()
+            }
+            else {
+                let last = ez.screenToWorld(ez.lastMousePos);
+                let cur = ez.screenToWorld(ez.mousePos);
+                let diff = cur.sub(last);
+                let perpendicular = cur.normalized().perpendicular();
+                let rot_add = diff.dot(perpendicular) / cur.length();
+                rotatedAng += rot_add
+            }
+            //console.log(ez.getMousePosWorld())
+        })
+
+        let pt = vec2(2,1)
+
+        function draw() {
+            //ez.centerCamera()
+            //ez.camera.setOrigin(vec3(-1,2,0));
+            ez.clear()
+            //ez.ctx.globalAlpha = 0.1;
+            drawAnimatedGrid(pt, Date.now() - start)
+
+            ez.save()
+            ez.canvas = rotatedCanvas
+            ez.clear()
+            ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
+            //drawAnimatedGrid([2,1], Date.now() - start)
+            ez.restore()
+
+            ez.save()
+            ez.canvas = planeCanvas
+            ez.clear()
+            ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
+            ez.line([-1.5,0],[1.5,0]).stroke("grey", {lineWidth: 4});
+            //ez.arrow(vec2(0,0),vec2(0,1),10).fillAndStroke("black", "black", {lineWidth: 2, lineJoin: "round"})
+            ez.circle(pt, 5).fillAndStroke("black", "lightblue");
+            ez.restore()
+
+
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+
+</html>

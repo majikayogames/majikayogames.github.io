@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>EZDraw</title>
+    <style>
+        /* canvas {
+            border: 1px solid black;
+        } */
+    </style>
+</head>
+
+<body>
+    <script src="ezdraw.js"></script>
+    <script>
+        let mainCanvas = ez.createCanvasAndAddToPage()
+
+        function draw() {
+            ez.centerCamera()
+            ez.clear()
+            ez.grid(100,50).stroke(0xbbbbbb)
+            let interp = (Date.now() % 10000) / 10000 * (Math.PI*2);
+            ez.rect(ez.getMousePosWorld(),[100,100], interp).fillAndStroke("#aaddddaa")
+
+            let up = mat3x4().rotated(vec3(0,1,1), interp).multiplyVec3(vec3(0,1,0))
+            let right = vec3(up.y, -up.x, up.z);
+            let forward = vec3(up.x, -up.z, up.y);
+            ez.arrow(vec2(0,0),up.scale(100),15).fillAndStroke("green", "green")
+            ez.arrow(vec2(0,0),right.scale(100),15).fillAndStroke("red", "red")
+            ez.arrow(vec2(0,0),forward.scale(100),15).fillAndStroke("blue", "blue")
+
+            ez.ctx.lineWidth = 1.5
+            ez.line(vec2(0,-1000), vec2(0,1000)).stroke("grey")
+            ez.line(vec2(-1000, 0), vec2(1000,0)).stroke("grey")
+            // ez.ctx.lineWidth = 3
+            // ez.arrow(vec2(0,0),vec2(0,-100),15).fillAndStroke("green", "green")
+            // ez.arrow(vec2(0,0),vec2(100,0),15).fillAndStroke("red", "red")
+            ez.ctx.lineWidth = 1
+
+            //ez.camera = ez.camera.rotated(vec3(0,1,0), 0.002)
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+
+</html>
