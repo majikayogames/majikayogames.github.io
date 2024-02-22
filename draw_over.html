@@ -4,18 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draw Over Video</title>
+    <title>Draw Over Video Or Image</title>
     <style>
         body {
             background-color: #fff;
         }
+
         canvas,
-        video {
+        video,
+        #img_element {
             position: absolute;
+        }
+        #img_element {
+            max-height: 100%;
+            line-height: 0;
         }
 
         canvas {
-            border: 1px solid black;
+            box-shadow: 0 0 0 1px black;
             cursor: none;
         }
 
@@ -64,7 +70,7 @@
 
     <div id="video_container" style="width: 1360px; height: 768px; position: relative; background-color: #fff;" title>
         <span style="position: absolute;">
-            Drag and drop a video to draw over it.
+            Drag and drop or copy paste a video or image to draw over it.
             <br />
             F for fullscreen. Space to play/pause. M to mute/unmute.
             <br />
@@ -73,6 +79,7 @@
             Press keys 1 through 4 to select from the draw color presets set above.
         </span>
         <video id="video_player" title></video>
+        <img id="img_element" style="display: none; margin: 0;" title/>
         <canvas id="video_overlay" width="1360" height="768" title></canvas>
         <div style="width: 100%; height: 100%; overflow: clip !important; position: relative; pointer-events: none;">
             <div class="cursor"></div>
@@ -260,6 +267,7 @@
         const videoContainer = document.getElementById('video_container');
         const videoPlayer = document.getElementById('video_player');
         const videoOverlay = document.getElementById('video_overlay');
+        let drawingOnImg = false;
 
         function adjustCanvasSize() {
             // Adjust the canvas size to match the video player
@@ -284,24 +292,56 @@
             dropZone.style.background = "#F3F4F6";
         });
 
+        // Refactored file handling logic
+        function handleFile(file) {
+            drawingOnImg = false
+            if (file.type.startsWith('video/')) {
+                // Handling video files
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                videoPlayer.play();
+                videoPlayer.style.display = ''; // Ensure video player is visible
+                document.getElementById('img_element').style.display = 'none'; // Hide image element
+                clearUndoRedoState();
+            } else if (file.type.startsWith('image/')) {
+                // Handling image files
+                const url = URL.createObjectURL(file);
+                document.getElementById('img_element').src = url;
+                document.getElementById('img_element').style.display = 'inline-block'; // Display image element
+                videoPlayer.style.display = 'none'; // Hide video player
+                videoPlayer.pause();
+                videoPlayer.src = ''; // Clear video source
+                drawingOnImg = true
+                clearUndoRedoState();
+            } else {
+                alert('Please paste a video or image file.');
+            }
+        }
+
+        // Drag and drop
         dropZone.addEventListener('drop', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.style.background = "#F3F4F6";
 
             const files = e.dataTransfer.files;
             if (files.length) {
-                const file = files[0];
-                if (file.type.startsWith('video/')) {
-                    const url = URL.createObjectURL(file);
-                    videoPlayer.src = url;
-                    videoPlayer.play();
-                    clearUndoRedoState();
-                } else {
-                    alert('Please drop a video file.');
+                handleFile(files[0]);
+            }
+        });
+
+        // Clipboard paste
+        document.addEventListener('paste', function (e) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file') {
+                    const file = items[i].getAsFile();
+                    handleFile(file);
+                    break; // Assuming only one file is pasted at a time
                 }
             }
         });
+
+
 
         function toggleFullScreen() {
             if (!document.fullscreenElement) {
