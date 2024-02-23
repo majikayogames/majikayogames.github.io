@@ -1012,38 +1012,48 @@ function smoothstep(edge0, edge1, value) {
 // MISC UTILITY FUNCTIONS //
 ////////////////////////////
 
-ez.defineSwizzles = function(obj, ...propertyList) {
-    function* generateCombinations(arr, length) {
-        if (length === 1) {
-            for (const item of arr) {
-                yield [item];
-            }
-        } else {
-            for (let i = 0; i < arr.length; i++) {
-                const first = arr[i];
-                const remainingCombinations = generateCombinations(arr, length - 1);
-                for (const combination of remainingCombinations) {
-                    yield [first, ...combination];
-                }
-            }
+// Object to store the observed variables' states
+const smoothedVariables = {};
+
+// Smoothly interpolates between values over time
+ez.smoothVar = function(key, newValue = undefined, duration = 1000) {
+    const currentTime = Date.now();
+    
+    // Initialize or update the tracking object for the specified key
+    if (newValue !== undefined) {
+        // If it's a new or updated target value
+        if (!smoothedVariables[key] || smoothedVariables[key].targetValue !== newValue) {
+            smoothedVariables[key] = {
+                startValue: smoothedVariables[key]?.currentValue || 0,
+                currentValue: smoothedVariables[key]?.currentValue || 0,
+                targetValue: newValue,
+                startTime: currentTime,
+                endTime: currentTime + duration
+            };
         }
+    }
+    
+    // If the key is not being tracked, return 0 as a default value
+    if (!smoothedVariables[key]) {
+        return 0;
     }
 
-    for (let len = 2; len <= propertyList.length; len++) {
-        for (const combination of generateCombinations(propertyList, len)) {
-            const propName = combination.join('');
-            Object.defineProperty(obj, propName, {
-                get: function() {
-                    return combination.map(prop => this[prop]);
-                }
-            });
-        }
+    // Calculate the current interpolation value if within the transition period
+    if (currentTime < smoothedVariables[key].endTime) {
+        const elapsedTime = currentTime - smoothedVariables[key].startTime;
+        const totalDuration = smoothedVariables[key].endTime - smoothedVariables[key].startTime;
+        const progress = elapsedTime / totalDuration;
+        
+        // Linear interpolation formula: startValue + progress * (endValue - startValue)
+        smoothedVariables[key].currentValue = smoothedVariables[key].startValue + 
+                                              progress * (smoothedVariables[key].targetValue - smoothedVariables[key].startValue);
+    } else {
+        // If the transition period has ended, ensure the current value matches the target value
+        smoothedVariables[key].currentValue = smoothedVariables[key].targetValue;
     }
+    
+    return smoothedVariables[key].currentValue;
 }
-
-ez.defineSwizzles(vec2.prototype, 'x', 'y', 'z', 'w')
-ez.defineSwizzles(vec3.prototype, 'x', 'y', 'z', 'w')
-ez.defineSwizzles(vec4.prototype, 'x', 'y', 'z', 'w')
 
 function tryVecToArray(vec) {
     if (vec === undefined) return vec
@@ -1197,6 +1207,40 @@ Object.entries(ez).forEach(([key,value]) => {
         }
     }
 })
+
+// Swizzles for vectors so we can use them like vec4.xyz and vec3.zyx
+ez.defineSwizzles = function(obj, ...propertyList) {
+    function* generateCombinations(arr, length) {
+        if (length === 1) {
+            for (const item of arr) {
+                yield [item];
+            }
+        } else {
+            for (let i = 0; i < arr.length; i++) {
+                const first = arr[i];
+                const remainingCombinations = generateCombinations(arr, length - 1);
+                for (const combination of remainingCombinations) {
+                    yield [first, ...combination];
+                }
+            }
+        }
+    }
+
+    for (let len = 2; len <= propertyList.length; len++) {
+        for (const combination of generateCombinations(propertyList, len)) {
+            const propName = combination.join('');
+            Object.defineProperty(obj, propName, {
+                get: function() {
+                    return combination.map(prop => this[prop]);
+                }
+            });
+        }
+    }
+}
+
+ez.defineSwizzles(vec2.prototype, 'x', 'y', 'z', 'w')
+ez.defineSwizzles(vec3.prototype, 'x', 'y', 'z', 'w')
+ez.defineSwizzles(vec4.prototype, 'x', 'y', 'z', 'w')
 
 // Hack so I don't have to call _update before every draw call etc. Any function you call automatically sets up ez
 Object.entries(ez).forEach(([key,value]) => {

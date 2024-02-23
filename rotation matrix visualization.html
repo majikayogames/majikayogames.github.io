@@ -12,12 +12,20 @@
 
 <body>
     <script src="ezdraw.js"></script>
+    <script src="ezgui.js"></script>
     <script>
         let mainCanvas = ez.createCanvasAndAddToPage()
         let rotatedCanvas = ez.createCanvasAndAddToPage()
         let planeCanvas = ez.createCanvasAndAddToPage()
         ez.canvas = mainCanvas;
         //mainCanvas.style.opacity = 0.1;
+
+        const data = {
+            "Show plane [S]": true,
+            "Show rotated grid [G]": false,
+            "Visualize position [V]": false
+        }
+        makeGui(data)
 
         ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
         ez.centerOrigin = true;
@@ -51,7 +59,7 @@
                         //console.log(numAdditionalArrowsNeeded)
                         let myTime = timeMs - timePer*i
                         let interp = lerpClamp(0, 1, (myTime / timePer));
-                        ez.arrow(arrowStart,arrowStart.add([interp,0]),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                        ez.arrow(arrowStart,arrowStart.add([interp,0]),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
                     }
                     numAdditionalArrowsNeeded.x--;
                     xArrows++
@@ -62,14 +70,14 @@
                         let myTime = timeMs - timePer*i
                         let interp = lerpClamp(0, 1, (myTime / timePer));
                         arrowStart.x = point.x * interp;
-                        ez.arrow(arrowStart,arrowStart.add([0,1]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                        ez.arrow(arrowStart,arrowStart.add([0,1]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
                     }
                     else {
                         //console.log(numAdditionalArrowsNeeded)
                         let myTime = timeMs - timePer*i
                         let interp = lerpClamp(0, 1, (myTime / timePer));
                         let arrowStart = point.sub(numAdditionalArrowsNeeded);
-                        ez.arrow(arrowStart,arrowStart.add([0,interp]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp})
+                        ez.arrow(arrowStart,arrowStart.add([0,interp]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
                     }
                     numAdditionalArrowsNeeded.y--;
                     yArrows++
@@ -104,25 +112,29 @@
         let pt = vec2(2,1)
 
         function draw() {
+            let showRotatedGrid = ez.smoothVar("showRotatedGrid", data["Show rotated grid [G]"] ? 1 : 0, 250)
+
             //ez.centerCamera()
             //ez.camera.setOrigin(vec3(-1,2,0));
             ez.clear()
-            //ez.ctx.globalAlpha = 0.1;
+            ez.ctx.globalAlpha = (1.0 - showRotatedGrid) * 0.9 + 0.1;
             drawAnimatedGrid(pt, Date.now() - start)
 
             ez.save()
             ez.canvas = rotatedCanvas
             ez.clear()
             ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
-            //drawAnimatedGrid([2,1], Date.now() - start)
+            ez.ctx.globalAlpha = showRotatedGrid
+            drawAnimatedGrid([2,1], Date.now() - start)
             ez.restore()
 
             ez.save()
             ez.canvas = planeCanvas
             ez.clear()
+            ez.ctx.globalAlpha = ez.smoothVar("showPlane", data["Show plane [S]"] ? 1 : 0, 250)
             ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
             ez.line([-1.5,0],[1.5,0]).stroke("grey", {lineWidth: 4});
-            //ez.arrow(vec2(0,0),vec2(0,1),10).fillAndStroke("black", "black", {lineWidth: 2, lineJoin: "round"})
+            ez.arrow(vec2(0,0),vec2(0,1),10).fillAndStroke("black", "black", {lineWidth: 2, lineJoin: "round"})
             ez.circle(pt, 5).fillAndStroke("black", "lightblue");
             ez.restore()
 
