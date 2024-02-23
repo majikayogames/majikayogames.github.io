@@ -11,6 +11,94 @@ const ez = {
     centerOrigin: false
 }
 
+///////////////////////
+// SETUP BOILERPLATE //
+///////////////////////
+
+ez.setCanvas = function(canvas) {
+    ez.canvas = canvas
+    ez.ctx = canvas.getContext("2d")
+}
+
+ez.clear = function(color) {
+    ez.ctx.clearRect(0, 0, ez.canvas.width, ez.canvas.height);
+    if(color !== undefined) {
+        this.ctx.save();
+        this.ctx.fillStyle = ez.parseColor(color);
+        ez.ctx.fillRect(0, 0, ez.canvas.width, ez.canvas.height);
+        this.ctx.restore();
+    }
+}
+
+ez.blitCanvas = function(otherCanvas) {
+    ez.ctx.drawImage(otherCanvas, 0, 0);
+}
+
+let savedEzs = [];
+ez.save = function() {
+    savedEzs.push({...ez});
+    ez.ctx.save();
+}
+
+ez.restore = function() {
+    Object.assign(ez, savedEzs.pop());
+    ez.ctx.restore();
+}
+
+ez.createCanvasAndAddToPage = function(width, height) {
+    ez.canvas = document.createElement("canvas");
+    document.body.appendChild(ez.canvas);
+
+    if (width && height) {
+        ez.canvas.width = width;
+        ez.canvas.height = height;
+    } else {
+        const canvas = ez.canvas;
+
+        // Style the canvas
+        canvas.style.display = 'block'; // Remove extra space below canvas
+
+        // Style the body to remove margins and overflow
+        document.body.style.margin = '0';
+        document.body.style.overflow = 'hidden'; // Hide scrollbars
+
+        // Ensure canvas is always in the top-left corner
+        canvas.style.position = 'absolute';
+        canvas.style.left = '0';
+        canvas.style.top = '0';
+        canvas.style.outline = 'none'; // Kept getting focus outline, so making this the default.
+
+        // Set full-screen styles
+        const resizeCanvas = () => {
+            // Adjust canvas size
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
+
+        // Apply styles initially and on resize
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    }
+    ez.addInputEventListeners(ez.canvas);
+    ez.ctx = ez.canvas.getContext("2d");
+
+    ez._update();
+    return ez.canvas;
+};
+
+// Called before every single function via hack at the bottom of this file.
+ez._update = function() {
+    if(!ez.canvas) {
+        ez.canvas = document.querySelector("canvas");
+        if(!ez.canvas) {
+            ez.createCanvasAndAddToPage();
+        }
+    }
+    ez.addInputEventListeners(ez.canvas);
+    ez.ctx = ez.canvas.getContext("2d");
+    ez.camera = ez.camera || mat3x4();
+}
+
 ///////////////////
 // SHAPE DRAWING //
 ///////////////////
@@ -226,92 +314,47 @@ ez.path.prototype.stroke = function() {
     ez.ctx.stroke(); // Apply the stroke to the path
 };
 
-///////////////////////
-// SETUP BOILERPLATE //
-///////////////////////
+// text
 
-ez.setCanvas = function(canvas) {
-    ez.canvas = canvas
-    ez.ctx = canvas.getContext("2d")
-}
+ez.text = function ezText(text, pos, options) {
+    if (!(this instanceof ezText)) return new ezText(text, pos, options);
+    this.text = text;
+    this.pos = vec2(pos); // Text position
+    this.options = options || {};
 
-ez.clear = function(color) {
-    ez.ctx.clearRect(0, 0, ez.canvas.width, ez.canvas.height);
-    if(color !== undefined) {
-        this.ctx.save();
-        this.ctx.fillStyle = ez.parseColor(color);
-        ez.ctx.fillRect(0, 0, ez.canvas.width, ez.canvas.height);
-        this.ctx.restore();
-    }
-}
-
-ez.blitCanvas = function(otherCanvas) {
-    ez.ctx.drawImage(otherCanvas, 0, 0);
-}
-
-let savedEzs = [];
-ez.save = function() {
-    savedEzs.push({...ez});
-    ez.ctx.save();
-}
-
-ez.restore = function() {
-    Object.assign(ez, savedEzs.pop());
-    ez.ctx.restore();
-}
-
-ez.createCanvasAndAddToPage = function(width, height) {
-    ez.canvas = document.createElement("canvas");
-    document.body.appendChild(ez.canvas);
-
-    if (width && height) {
-        ez.canvas.width = width;
-        ez.canvas.height = height;
-    } else {
-        const canvas = ez.canvas;
-
-        // Style the canvas
-        canvas.style.display = 'block'; // Remove extra space below canvas
-
-        // Style the body to remove margins and overflow
-        document.body.style.margin = '0';
-        document.body.style.overflow = 'hidden'; // Hide scrollbars
-
-        // Ensure canvas is always in the top-left corner
-        canvas.style.position = 'absolute';
-        canvas.style.left = '0';
-        canvas.style.top = '0';
-
-        // Set full-screen styles
-        const resizeCanvas = () => {
-            // Adjust canvas size
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        };
-
-        // Apply styles initially and on resize
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-    }
-    ez.addInputEventListeners(ez.canvas);
-    ez.ctx = ez.canvas.getContext("2d");
-
-    ez._update();
-    return ez.canvas;
+    // Default options
+    this.fontSize = this.options.fontSize || 16; // Default font size
+    this.fontFamily = this.options.fontFamily || 'Arial'; // Default font family
+    this.fontStyle = this.options.fontStyle || 'normal'; // Default font style
+    this.textAlign = this.options.textAlign || 'center'; // Default text align
+    this.textBaseline = this.options.textBaseline || 'alphabetic'; // Default text baseline
 };
 
-// Called before every single function via hack at the bottom of this file.
-ez._update = function() {
-    if(!ez.canvas) {
-        ez.canvas = document.querySelector("canvas");
-        if(!ez.canvas) {
-            ez.createCanvasAndAddToPage();
-        }
-    }
-    ez.addInputEventListeners(ez.canvas);
-    ez.ctx = ez.canvas.getContext("2d");
-    ez.camera = ez.camera || mat3x4();
-}
+ez.text.prototype.fill = function() {
+    // Apply the text styles
+    ez.ctx.font = `${this.fontStyle} ${this.fontSize}px ${this.fontFamily}`;
+    ez.ctx.textAlign = this.textAlign;
+    ez.ctx.textBaseline = this.textBaseline;
+
+    // Transform the position to screen coordinates
+    const transformedPos = ez.worldToScreen(vec3(this.pos.x, this.pos.y, 0));
+
+    // Fill the text
+    ez.ctx.fillText(this.text, transformedPos.x, transformedPos.y);
+};
+
+ez.text.prototype.stroke = function() {
+    // Apply the text styles
+    ez.ctx.font = `${this.fontStyle} ${this.fontSize}px ${this.fontFamily}`;
+    ez.ctx.textAlign = this.textAlign;
+    ez.ctx.textBaseline = this.textBaseline;
+
+    // Transform the position to screen coordinates
+    const transformedPos = ez.worldToScreen(vec3(this.pos.x, this.pos.y, 0));
+
+    // Stroke the text
+    ez.ctx.strokeText(this.text, transformedPos.x, transformedPos.y);
+};
 
 /////////////////
 // INPUT STUFF //
@@ -504,7 +547,7 @@ vec2.prototype.scale = vec2.prototype.scaled = vec2.prototype.multiply = functio
 vec2.prototype.magnitude = vec2.prototype.mag = vec2.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y); }
 vec2.prototype.duplicate = function() { return vec2(this.x, this.y); }
 vec2.prototype.normalized = function() { return vec2(this.x / this.magnitude(), this.y / this.magnitude()); };
-vec2.prototype.rounded = function() { return vec2(Math.round(this.x), Math.round(this.y)); };
+vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.round(this.x), Math.round(this.y)); };
 vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)); };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
@@ -549,7 +592,7 @@ vec3.prototype.scale = vec3.prototype.scaled = vec3.prototype.multiply = functio
 vec3.prototype.magnitude = vec3.prototype.mag = vec3.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
 vec3.prototype.duplicate = function() { return vec3(this.x, this.y, this.z); }
 vec3.prototype.normalized = function() { return new vec3(this.x / this.magnitude(), this.y / this.magnitude(), this.z / this.magnitude()); };
-vec3.prototype.rounded = function() { return vec3(Math.round(this.x), Math.round(this.y), Math.round(this.z)); };
+vec3.prototype.rounded = vec3.prototype.round = function() { return vec3(Math.round(this.x), Math.round(this.y), Math.round(this.z)); };
 vec3.prototype.abs = function() { return vec3(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z)); };
 vec3.prototype.cross = function(other) {
     other = vec3(other);
@@ -1063,6 +1106,10 @@ function tryVecToArray(vec) {
 
 function deg_to_rad(degrees) {
     return degrees * (Math.PI / 180);
+}
+
+function rad_to_deg(radians) {
+    return radians * (180 / Math.PI);
 }
 
 ez.bresenhamLineConnect = function(pointA, pointB) {
