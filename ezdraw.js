@@ -78,6 +78,11 @@ ez.createCanvasAndAddToPage = function(width, height) {
         // Apply styles initially and on resize
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        // Set the canvas to be focusable
+        canvas.setAttribute('tabindex', '0');
+        // Allow using same mouseDrag etc on mobile.
+        canvas.style.touchAction = "none";
     }
     ez.addInputEventListeners(ez.canvas);
     ez.ctx = ez.canvas.getContext("2d");
@@ -512,9 +517,6 @@ ez.addInputEventListeners = function(canvas) {
         ez.mouseDragEndCallbacks.forEach(cb => cb());
         ez.mouseLeaveCallbacks.forEach(cb => cb());
     });
-
-    // Set the canvas to be focusable
-    canvas.setAttribute('tabindex', '0');
 };
 
 ////////////////
@@ -1255,7 +1257,7 @@ Object.entries(ez).forEach(([key,value]) => {
     }
 })
 
-// Swizzles for vectors so we can use them like vec4.xyz and vec3.zyx
+// Swizzles for vectors so we can use them like vec4.xyz and vec3.zyx, or setters like vec3.xzy = [1,2,3] like how you can in shaders
 ez.defineSwizzles = function(obj, ...propertyList) {
     function* generateCombinations(arr, length) {
         if (length === 1) {
@@ -1279,6 +1281,9 @@ ez.defineSwizzles = function(obj, ...propertyList) {
             Object.defineProperty(obj, propName, {
                 get: function() {
                     return combination.map(prop => this[prop]);
+                },
+                set: function(value) {
+                    combination.forEach((e, i) => this[e] = vec4(value).xyzw[i]);
                 }
             });
         }
