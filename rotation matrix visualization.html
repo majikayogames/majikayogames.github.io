@@ -22,14 +22,29 @@
 
         const data = {
             "Show plane [S]": true,
-            "Show rotated grid [G]": false,
             "Visualize position [V]": false,
-            "Draw point as arrow instead [A]": false,
+            "Show rotated grid [G]": false,
             "Show normal & perpendicular as axes [N]": false,
+            "Draw point as arrow instead [A]": false,
+            "abcd": [1,2,3,4,5],
+            "zzz": () => alert("Hi"),
+            "testSection": {
+                "zzz": 123,
+                "bbb": false,
+                "x": "log",
+                "doubleNestedSection": {
+                    "zzz": 123,
+                    "bbb": false,
+                    "x": "log",
+                }
+            }
         }
         let animatingVisualization = false
         let visualizePosAnimStartTime = Date.now()
         const dataCallbacks = {
+            // "*": (v, p) => {
+            //     console.log(`${v} set at ${p}`);
+            // },
             "Visualize position [V]": (value) => {
                 animatingVisualization = value
                 visualizePosAnimStartTime = Date.now()
@@ -41,10 +56,11 @@
         }
         makeGui(data, dataCallbacks)
         document.onkeypress = (e) => {
-            if(e.key === "s") { data["Show plane [S]"] = !data["Show plane [S]"] }
-            else if(e.key === "g") { data["Show rotated grid [G]"] = !data["Show rotated grid [G]"] }
-            else if(e.key === "v") { data["Visualize position [V]"] = !data["Visualize position [V]"] }
-            else if(e.key === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
+            if(e.key.toLowerCase() === "s") { data["Show plane [S]"] = !data["Show plane [S]"] }
+            else if(e.key.toLowerCase() === "g") { data["Show rotated grid [G]"] = !data["Show rotated grid [G]"] }
+            else if(e.key.toLowerCase() === "v") { data["Visualize position [V]"] = !data["Visualize position [V]"] }
+            else if(e.key.toLowerCase() === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
+            else if(e.key.toLowerCase() === "n") { data["Show normal & perpendicular as axes [N]"] = !data["Show normal & perpendicular as axes [N]"] }
         }
 
         ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
@@ -191,15 +207,23 @@
             }
             else {
                 ez.circle(pt, 5).fillAndStroke("black", "lightblue");
-            }            
+            }
+
+
+            ez.save()
+                ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords");
+                ez.arrow(vec2(0,0),vec2(0,1),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round"})
+                ez.arrow(vec2(0,0),vec2(1,0),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round"})
             ez.restore()
 
-            ez.ctx.globalAlpha = 1;
-            ez.text("Normal: ("+normalMainGrid.xy.map(n => n.toFixed(1))+")", [-2, 2], {fontStyle: "bold italic", textAlign: "right"}).fill()
-            ez.text("Perpendicular of normal: ("+normalMainGrid.multiply([1,-1]).yx.map(n => n.toFixed(1))+")", [-2, 1.5], {fontStyle: "bold italic", textAlign: "right"}).fill("red")
+            ez.restore()
+
+            ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords", data["Show normal & perpendicular as axes [N]"] ? 1 : 0, 250);
+            ez.text("Normal: ("+normalMainGrid.xy.map(n => n.toFixed(1))+")", [-2, 2], {fontStyle: "bold italic", textAlign: "right"}).fill("green")
+            ez.text("Normal rotated 90°: ("+normalMainGrid.multiply([1,-1]).yx.map(n => n.toFixed(1))+")", [-2, 1.5], {fontStyle: "bold italic", textAlign: "right"}).fill("red")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
-            ez.text("Position: ("+getPtPosMainGrid().xy.map(n => n.toFixed(1))+")", getPtPosMainGrid().add([0,0.5]), {fontStyle: "bold italic"}).fill()
+            //ez.text("Position: ("+getPtPosMainGrid().xy.map(n => n.toFixed(1))+")", getPtPosMainGrid().add([0,0.5]), {fontStyle: "bold italic"}).fill()
 
 
             requestAnimationFrame(draw);
