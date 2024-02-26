@@ -535,29 +535,46 @@ ez.triangle = function ezTriangle(pos, points, colors) {
     this.transform.setOrigin(this.pos);
 };
 
-ez.triangle.prototype.fill = function() {
+ez.triangle.prototype.stroke = function(color) {
+    ez.save();
+    
+    // Transform each point to screen space
+    let transformedPoints = this.points.map(point => ez.worldToScreen(point, this.transform));
+    const [p0, p1, p2] = transformedPoints.map(p => vec2(p));
+
+    const drawLineAndInterpolateColors = function(startPoint, endPoint, startColor, endColor) {
+        // Calculate the gradient between startColor and endColor
+        var gradient = ez.ctx.createLinearGradient(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+        gradient.addColorStop(0, startColor);
+        gradient.addColorStop(1, endColor);
+        
+        // Set the stroke style to the gradient and draw the line
+        ez.ctx.strokeStyle = gradient;
+        ez.ctx.beginPath();
+        ez.ctx.moveTo(startPoint.x, startPoint.y);
+        ez.ctx.lineTo(endPoint.x, endPoint.y);
+        ez.ctx.stroke();
+    };
+    
+    // Draw lines between the points and interpolate colors
+    drawLineAndInterpolateColors(p0, p1, color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1]);
+    drawLineAndInterpolateColors(p1, p2, color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]);
+    drawLineAndInterpolateColors(p2, p0, color !== undefined ? color : this.colors[2], color !== undefined ? color : this.colors[0]);
+
+    ez.restore();
+};
+
+ez.triangle.prototype.fill = function(color) {
     ez.save();
     
     // Transform and project each point to screen space
     let transformedPoints = this.points.map(point => {
         return ez.worldToScreen(point, this.transform);
     });
-    const transformedCenter = transformedPoints[0].add(transformedPoints[1]).add(transformedPoints[2]).divide(3);
-    // Calculate the minimum distance from the centroid in pixels
-    const minDistance = transformedPoints.reduce((max, point) => {
-        let distance = vec2(point.sub(transformedCenter)).length();
-        return Math.min(max, distance);
-    }, Infinity);
-    // Scale up by 1.5 pixels from center to prevent gaps in neighboring triangles
-    transformedPoints = transformedPoints.map(point => {
-        return vec3(vec2(point.sub(transformedCenter)).scaled((minDistance+0.6)/minDistance).add(transformedCenter), point.z);
-    });
-
-    //let colors = this.colors.map(c => ez.parseColorAsRGBAObj(c));
 
     // Loop through a bounding box around the triangle and fill in pixels
     const [p0, p1, p2] = transformedPoints.map(p => vec2(p));
-    ez.drawTriangle(ez.canvas, ez.ctx, p0, p1, p2, this.colors[0], this.colors[1], this.colors[2]);
+    ez.drawTriangle(ez.canvas, ez.ctx, p0, p1, p2, color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]);
 
     ez.restore();
 };
@@ -577,22 +594,33 @@ ez.quad = function ezQuad(pos, points, colors) {
     this.transform.setOrigin(this.pos);
 };
 
-ez.quad.prototype.fill = function() {
+ez.quad.prototype.getTriangles = function(color) {
     // Colors for the triangles (assuming colors are ordered in the same way as points)
-    const colorsTriangle1 = [this.colors[0], this.colors[1], this.colors[2]];
-    const colorsTriangle2 = [this.colors[2], this.colors[3], this.colors[0]];
+    const colorsTriangle1 = [color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]];
+    const colorsTriangle2 = [color !== undefined ? color : this.colors[2], color !== undefined ? color : this.colors[3], color !== undefined ? color : this.colors[0]];
 
     // Create and render the first triangle
     let triangle1 = ez.triangle(this.pos, [this.points[0], this.points[1], this.points[2]], colorsTriangle1);
     triangle1.transform = this.transform;
-    triangle1.fill();
 
     // Create and render the second triangle
     let triangle2 = ez.triangle(this.pos, [this.points[2], this.points[3], this.points[0]], colorsTriangle2);
     triangle2.transform = this.transform;
-    triangle2.fill();
+
+    return [triangle1, triangle2];
+}
+
+ez.quad.prototype.fill = function(color) {
+    const tris = this.getTriangles(color);
+    tris[0].fill();
+    tris[1].fill();
 };
 
+ez.quad.prototype.stroke = function(color) {
+    const tris = this.getTriangles(color);
+    tris[0].stroke();
+    tris[1].stroke();
+};
 
 
 ////////////////
@@ -626,6 +654,8 @@ vec2.prototype.magnitude = vec2.prototype.mag = vec2.prototype.length = function
 vec2.prototype.duplicate = function() { return vec2(this.x, this.y); }
 vec2.prototype.normalized = function() { return vec2(this.x / this.magnitude(), this.y / this.magnitude()); };
 vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.round(this.x), Math.round(this.y)); };
+vec2.prototype.floor = vec2.prototype.floored = function() { return vec2(Math.floor(this.x), Math.floor(this.y)); };
+vec2.prototype.ceil = vec2.prototype.ceiled = function() { return vec2(Math.ceil(this.x), Math.ceil(this.y)); };
 vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)); };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
@@ -671,6 +701,8 @@ vec3.prototype.magnitude = vec3.prototype.mag = vec3.prototype.length = function
 vec3.prototype.duplicate = function() { return vec3(this.x, this.y, this.z); }
 vec3.prototype.normalized = function() { return new vec3(this.x / this.magnitude(), this.y / this.magnitude(), this.z / this.magnitude()); };
 vec3.prototype.rounded = vec3.prototype.round = function() { return vec3(Math.round(this.x), Math.round(this.y), Math.round(this.z)); };
+vec3.prototype.floored = vec3.prototype.floor = function() { return vec3(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z)); };
+vec3.prototype.ceiled = vec3.prototype.ceil = function() { return vec3(Math.ceil(this.x), Math.ceil(this.y), Math.ceil(this.z)); };
 vec3.prototype.abs = function() { return vec3(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z)); };
 vec3.prototype.cross = function(other) {
     other = vec3(other);
@@ -1048,6 +1080,19 @@ mat3x4.prototype.scaled = function(scale) {
     );
 };
 
+mat3x4.prototype.translated = function(translate) {
+    if (Array.isArray(translate)) {
+        translate = new vec3(translate);
+    }
+
+    return mat3x4(
+        this.matrix.col1,
+        this.matrix.col2,
+        this.matrix.col3,
+        vec3(this.matrix.col4).add(translate)
+    );
+};
+
 ez.worldToScreen = function(point, objectTransform) {
     // Apply object/model transform to get world coordinates
     objectTransform = (objectTransform || mat3x4());
@@ -1290,19 +1335,7 @@ ez.makeVecBarycentric = function(p, a, b, c) {
 ez._blitCanvasSizes = [10, 20, 30, 40, 50, 100, 150, 200, 250, 500];
 ez._blitCanvasCache = new Map();
 
-ez._initializeCanvases = function() {
-    ez._blitCanvasSizes.forEach(size => {
-        const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d", {willReadFrequently: true});
-        // Initialize canvas with a clear state
-        ctx.clearRect(0, 0, size, size);
-        ez._blitCanvasCache.set(size, { canvas, ctx });
-    });
-}
-
-// Function to select the appropriate canvas based on requested size
+// Function to select or create the appropriate canvas based on requested size
 ez._getMiniCanvasForBlit = function(width, height) {
     // Find the smallest canvas size that fits the requested dimensions
     const sizeNeeded = Math.max(width, height);
@@ -1310,15 +1343,25 @@ ez._getMiniCanvasForBlit = function(width, height) {
     if (!selectedSize) {
         throw new Error("Requested size exceeds maximum predefined canvas size.");
     }
+
+    // Check if the canvas of the selected size is already created, if not, create it
+    if (!ez._blitCanvasCache.has(selectedSize)) {
+        const canvas = document.createElement("canvas");
+        canvas.width = selectedSize;
+        canvas.height = selectedSize;
+        const ctx = canvas.getContext("2d", {willReadFrequently: true});
+        // Initialize canvas with a clear state
+        ctx.clearRect(0, 0, selectedSize, selectedSize);
+        ez._blitCanvasCache.set(selectedSize, { canvas, ctx });
+    }
+
     const { canvas, ctx } = ez._blitCanvasCache.get(selectedSize);
     // Clear the canvas to ensure it's ready for new drawing operations
     ctx.clearRect(0, 0, selectedSize, selectedSize);
     const canvasImageData = ctx.getImageData(0, 0, selectedSize, selectedSize);
     return [canvas, ctx, canvasImageData];
-}
+};
 
-// Initialize canvases at the start
-ez._initializeCanvases();
 
 ez.drawTriangle = function(canvas, ctx, p0, p1, p2, color0="#000", color1="#000", color2="#000") {
     color0 = ez.parseColorAsRGBAObj(color0);
@@ -1331,7 +1374,7 @@ ez.drawTriangle = function(canvas, ctx, p0, p1, p2, color0="#000", color1="#000"
     pointsAndColors.sort((a, b) => a.point.y - b.point.y);
 
     // Unpack sorted points and colors
-    [p0, p1, p2] = pointsAndColors.map(pc => vec2(pc.point).rounded());
+    [p0, p1, p2] = pointsAndColors.map(pc => vec2(pc.point).floor());
     [color0, color1, color2] = pointsAndColors.map(pc => pc.color);
 
     let blitCanvas, blitCtx, imgData
