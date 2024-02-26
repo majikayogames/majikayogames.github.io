@@ -19,6 +19,8 @@
         let planeCanvas = ez.createCanvasAndAddToPage()
         ez.canvas = mainCanvas;
         //mainCanvas.style.opacity = 0.1;
+        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
+        ez.centerOrigin = true;
 
         const data = {
             "Show plane [S]": true,
@@ -62,9 +64,6 @@
             else if(e.key.toLowerCase() === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
             else if(e.key.toLowerCase() === "n") { data["Show normal & perpendicular as axes [N]"] = !data["Show normal & perpendicular as axes [N]"] }
         }
-
-        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
-        ez.centerOrigin = true;
 
         function drawAnimatedGrid(point, timeMs = 0, xAxisOpacity = 1, yAxisOpacity = 1) {
             point = vec2(point)

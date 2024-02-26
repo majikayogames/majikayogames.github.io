@@ -104,6 +104,164 @@ ez._update = function() {
     ez.camera = ez.camera || mat3x4();
 }
 
+/////////////////
+// INPUT STUFF //
+/////////////////
+
+ez.keys = {};
+ez.mousePos = new vec2(0, 0);
+
+ez.keyPressCallbacks = {};
+ez.keyDownCallbacks = {};
+ez.keyUpCallbacks = {};
+ez.mouseMoveCallbacks = [];
+ez.mouseDownCallbacks = [];
+ez.mouseDragCallbacks = [];
+ez.mouseDragEndCallbacks = [];
+ez.mouseLeaveCallbacks = [];
+ez.mouseDown = { left: false, middle: false, right: false };
+ez.isDragging = false;
+ez.lastMousePos = new vec2(0, 0);
+ez.curCanvasMouseOver = null;
+
+ez.onKeyPress = function(key, callback) {
+    if (!ez.keyPressCallbacks[key]) {
+        ez.keyPressCallbacks[key] = [];
+    }
+    ez.keyPressCallbacks[key].push(callback);
+};
+
+ez.onKeyDown = function(key, callback) {
+    if (!ez.keyDownCallbacks[key]) {
+        ez.keyDownCallbacks[key] = [];
+    }
+    ez.keyDownCallbacks[key].push(callback);
+};
+
+ez.onKeyUp = function(key, callback) {
+    if (!ez.keyUpCallbacks[key]) {
+        ez.keyUpCallbacks[key] = [];
+    }
+    ez.keyUpCallbacks[key].push(callback);
+};
+
+ez.isMouseInCanvas = function(canvas) {
+    if(!canvas) canvas = ez.canvas;
+    return canvas = ez.curCanvasMouseOver;
+};
+
+ez.isMouseDown = function(button="left") {
+    return ez.mouseDown[button];
+};
+
+ez.onMouseMove = function(callback) {
+    ez.mouseMoveCallbacks.push(callback);
+};
+
+ez.onMouseDown = function(callback) {
+    ez.mouseDownCallbacks.push(callback);
+};
+
+ez.onMouseDrag = function(callback) {
+    ez.mouseDragCallbacks.push(callback);
+};
+
+ez.onMouseDragEnd = function(callback) {
+    ez.mouseDragEndCallbacks.push(callback);
+};
+
+ez.onMouseLeave = function(callback) {
+    ez.mouseLeaveCallbacks.push(callback);
+};
+
+ez.isKeyDown = function(key) {
+    return ez.keys[key] || false;
+};
+
+ez.getMousePos = function() {
+    return ez.mousePos;
+};
+
+ez.addInputEventListeners = function(canvas) {
+    if (canvas.ezEventListenersAdded) return; // Prevent multiple bindings
+    canvas.ezEventListenersAdded = true;
+
+    canvas.addEventListener('keydown', function(event) {
+        ez.keys[event.key] = true;
+    });
+
+    canvas.addEventListener('keyup', function(event) {
+        ez.keys[event.key] = false;
+    });
+    canvas.addEventListener('keypress', function(event) {
+        if (ez.keyPressCallbacks[event.key]) {
+            ez.keyPressCallbacks[event.key].forEach(cb => cb());
+        }
+    });
+
+    canvas.addEventListener('keydown', function(event) {
+        ez.keys[event.key] = true;
+        if (ez.keyDownCallbacks[event.key]) {
+            ez.keyDownCallbacks[event.key].forEach(cb => cb());
+        }
+    });
+
+    canvas.addEventListener('keyup', function(event) {
+        ez.keys[event.key] = false;
+        if (ez.keyUpCallbacks[event.key]) {
+            ez.keyUpCallbacks[event.key].forEach(cb => cb());
+        }
+    });
+
+    canvas.addEventListener('pointerdown', function(event) {
+        ez.curCanvasMouseOver = canvas;
+        let rect = canvas.getBoundingClientRect();
+        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
+        ez.mouseDown.left = event.button === 0;
+        ez.mouseDown.middle = event.button === 1;
+        ez.mouseDown.right = event.button === 2;
+        ez.mouseDownCallbacks.forEach(cb => cb());
+        ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
+    });
+
+    canvas.addEventListener('pointermove', function(event) {
+        ez.curCanvasMouseOver = canvas;
+        let rect = canvas.getBoundingClientRect();
+        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
+        ez.mouseMoveCallbacks.forEach(cb => cb(ez.mousePos));
+        if(ez.isMouseDown("left")) {
+            ez.isDragging = true;
+        }
+        if (ez.isDragging) {
+            let delta = ez.mousePos.sub(ez.lastMousePos);
+            ez.mouseDragCallbacks.forEach(cb => cb(delta));
+        }
+        ez.lastMousePos = ez.mousePos;
+    });
+
+    canvas.addEventListener('pointerup', function(event) {
+        ez.curCanvasMouseOver = canvas;
+        let rect = canvas.getBoundingClientRect();
+        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
+        ez.mouseDown.left = !(event.button === 0);
+        ez.mouseDown.middle = !(event.button === 1);
+        ez.mouseDown.right = !(event.button === 2);
+        if (ez.isDragging) {
+            ez.isDragging = false;
+            ez.mouseDragEndCallbacks.forEach(cb => cb());
+        }
+        ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
+    });
+
+    canvas.addEventListener('pointerleave', function(event) {
+        ez.isDragging = false;
+        ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
+        ez.curCanvasMouseOver = null;
+        ez.mouseDragEndCallbacks.forEach(cb => cb());
+        ez.mouseLeaveCallbacks.forEach(cb => cb());
+    });
+};
+
 ///////////////////
 // SHAPE DRAWING //
 ///////////////////
@@ -361,163 +519,81 @@ ez.text.prototype.stroke = function() {
     ez.ctx.strokeText(this.text, transformedPos.x, transformedPos.y);
 };
 
-/////////////////
-// INPUT STUFF //
-/////////////////
+// triangle
 
-ez.keys = {};
-ez.mousePos = new vec2(0, 0);
+ez.triangle = function ezTriangle(pos, points, colors) {
+    if (!(this instanceof ezTriangle)) return new ezTriangle(pos, points, colors);
+    this.pos = vec3(pos); // Triangle's center position
+    if(Array.isArray(points) && points.length === 6) points = [points.slice(0,2),points.slice(2,4),points.slice(4,6)]
+    else if(Array.isArray(points) && points.length === 9) points = [points.slice(0,3),points.slice(3,6),points.slice(6,9)]
+    this.points = points.map(p => vec3(p)); // Array of points (vec3) relative to center
+    this.colors = colors; // Array of colors corresponding to each vertex
+    this.isSubdiv = false;
 
-ez.keyPressCallbacks = {};
-ez.keyDownCallbacks = {};
-ez.keyUpCallbacks = {};
-ez.mouseMoveCallbacks = [];
-ez.mouseDownCallbacks = [];
-ez.mouseDragCallbacks = [];
-ez.mouseDragEndCallbacks = [];
-ez.mouseLeaveCallbacks = [];
-ez.mouseDown = { left: false, middle: false, right: false };
-ez.isDragging = false;
-ez.lastMousePos = new vec2(0, 0);
-ez.curCanvasMouseOver = null;
-
-ez.onKeyPress = function(key, callback) {
-    if (!ez.keyPressCallbacks[key]) {
-        ez.keyPressCallbacks[key] = [];
-    }
-    ez.keyPressCallbacks[key].push(callback);
+    // Prepare the transform for the triangle, including scale and position
+    this.transform = mat3x4();
+    this.transform.setOrigin(this.pos);
 };
 
-ez.onKeyDown = function(key, callback) {
-    if (!ez.keyDownCallbacks[key]) {
-        ez.keyDownCallbacks[key] = [];
-    }
-    ez.keyDownCallbacks[key].push(callback);
-};
-
-ez.onKeyUp = function(key, callback) {
-    if (!ez.keyUpCallbacks[key]) {
-        ez.keyUpCallbacks[key] = [];
-    }
-    ez.keyUpCallbacks[key].push(callback);
-};
-
-ez.isMouseInCanvas = function(canvas) {
-    if(!canvas) canvas = ez.canvas;
-    return canvas = ez.curCanvasMouseOver;
-};
-
-ez.isMouseDown = function(button="left") {
-    return ez.mouseDown[button];
-};
-
-ez.onMouseMove = function(callback) {
-    ez.mouseMoveCallbacks.push(callback);
-};
-
-ez.onMouseDown = function(callback) {
-    ez.mouseDownCallbacks.push(callback);
-};
-
-ez.onMouseDrag = function(callback) {
-    ez.mouseDragCallbacks.push(callback);
-};
-
-ez.onMouseDragEnd = function(callback) {
-    ez.mouseDragEndCallbacks.push(callback);
-};
-
-ez.onMouseLeave = function(callback) {
-    ez.mouseLeaveCallbacks.push(callback);
-};
-
-ez.isKeyDown = function(key) {
-    return ez.keys[key] || false;
-};
-
-ez.getMousePos = function() {
-    return ez.mousePos;
-};
-
-ez.addInputEventListeners = function(canvas) {
-    if (canvas.ezEventListenersAdded) return; // Prevent multiple bindings
-    canvas.ezEventListenersAdded = true;
-
-    canvas.addEventListener('keydown', function(event) {
-        ez.keys[event.key] = true;
+ez.triangle.prototype.fill = function() {
+    ez.save();
+    
+    // Transform and project each point to screen space
+    let transformedPoints = this.points.map(point => {
+        return ez.worldToScreen(point, this.transform);
+    });
+    const transformedCenter = transformedPoints[0].add(transformedPoints[1]).add(transformedPoints[2]).divide(3);
+    // Calculate the minimum distance from the centroid in pixels
+    const minDistance = transformedPoints.reduce((max, point) => {
+        let distance = vec2(point.sub(transformedCenter)).length();
+        return Math.min(max, distance);
+    }, Infinity);
+    // Scale up by 1.5 pixels from center to prevent gaps in neighboring triangles
+    transformedPoints = transformedPoints.map(point => {
+        return vec3(vec2(point.sub(transformedCenter)).scaled((minDistance+0.6)/minDistance).add(transformedCenter), point.z);
     });
 
-    canvas.addEventListener('keyup', function(event) {
-        ez.keys[event.key] = false;
-    });
-    canvas.addEventListener('keypress', function(event) {
-        if (ez.keyPressCallbacks[event.key]) {
-            ez.keyPressCallbacks[event.key].forEach(cb => cb());
-        }
-    });
+    //let colors = this.colors.map(c => ez.parseColorAsRGBAObj(c));
 
-    canvas.addEventListener('keydown', function(event) {
-        ez.keys[event.key] = true;
-        if (ez.keyDownCallbacks[event.key]) {
-            ez.keyDownCallbacks[event.key].forEach(cb => cb());
-        }
-    });
+    // Loop through a bounding box around the triangle and fill in pixels
+    const [p0, p1, p2] = transformedPoints.map(p => vec2(p));
+    ez.drawTriangle(ez.canvas, ez.ctx, p0, p1, p2, this.colors[0], this.colors[1], this.colors[2]);
 
-    canvas.addEventListener('keyup', function(event) {
-        ez.keys[event.key] = false;
-        if (ez.keyUpCallbacks[event.key]) {
-            ez.keyUpCallbacks[event.key].forEach(cb => cb());
-        }
-    });
-
-    canvas.addEventListener('pointerdown', function(event) {
-        ez.curCanvasMouseOver = canvas;
-        let rect = canvas.getBoundingClientRect();
-        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseDown.left = event.button === 0;
-        ez.mouseDown.middle = event.button === 1;
-        ez.mouseDown.right = event.button === 2;
-        ez.mouseDownCallbacks.forEach(cb => cb());
-        ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-    });
-
-    canvas.addEventListener('pointermove', function(event) {
-        ez.curCanvasMouseOver = canvas;
-        let rect = canvas.getBoundingClientRect();
-        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseMoveCallbacks.forEach(cb => cb(ez.mousePos));
-        if(ez.isMouseDown("left")) {
-            ez.isDragging = true;
-        }
-        if (ez.isDragging) {
-            let delta = ez.mousePos.sub(ez.lastMousePos);
-            ez.mouseDragCallbacks.forEach(cb => cb(delta));
-        }
-        ez.lastMousePos = ez.mousePos;
-    });
-
-    canvas.addEventListener('pointerup', function(event) {
-        ez.curCanvasMouseOver = canvas;
-        let rect = canvas.getBoundingClientRect();
-        ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseDown.left = !(event.button === 0);
-        ez.mouseDown.middle = !(event.button === 1);
-        ez.mouseDown.right = !(event.button === 2);
-        if (ez.isDragging) {
-            ez.isDragging = false;
-            ez.mouseDragEndCallbacks.forEach(cb => cb());
-        }
-        ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-    });
-
-    canvas.addEventListener('pointerleave', function(event) {
-        ez.isDragging = false;
-        ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
-        ez.curCanvasMouseOver = null;
-        ez.mouseDragEndCallbacks.forEach(cb => cb());
-        ez.mouseLeaveCallbacks.forEach(cb => cb());
-    });
+    ez.restore();
 };
+
+// quad
+
+ez.quad = function ezQuad(pos, points, colors) {
+    if (!(this instanceof ezQuad)) return new ezQuad(pos, points, colors);
+    this.pos = vec3(pos); // Quad's center position
+    if (Array.isArray(points) && points.length === 8) points = [points.slice(0, 2), points.slice(2, 4), points.slice(4, 6), points.slice(6, 8)];
+    else if (Array.isArray(points) && points.length === 12) points = [points.slice(0, 3), points.slice(3, 6), points.slice(6, 9), points.slice(9, 12)];
+    this.points = points.map(p => vec3(p)); // Array of points (vec3) relative to center
+    this.colors = colors; // Array of colors corresponding to each vertex
+
+    // Prepare the transform for the quad, including scale and position
+    this.transform = mat3x4();
+    this.transform.setOrigin(this.pos);
+};
+
+ez.quad.prototype.fill = function() {
+    // Colors for the triangles (assuming colors are ordered in the same way as points)
+    const colorsTriangle1 = [this.colors[0], this.colors[1], this.colors[2]];
+    const colorsTriangle2 = [this.colors[2], this.colors[3], this.colors[0]];
+
+    // Create and render the first triangle
+    let triangle1 = ez.triangle(this.pos, [this.points[0], this.points[1], this.points[2]], colorsTriangle1);
+    triangle1.transform = this.transform;
+    triangle1.fill();
+
+    // Create and render the second triangle
+    let triangle2 = ez.triangle(this.pos, [this.points[2], this.points[3], this.points[0]], colorsTriangle2);
+    triangle2.transform = this.transform;
+    triangle2.fill();
+};
+
+
 
 ////////////////
 // MATH STUFF //
@@ -967,7 +1043,8 @@ mat3x4.prototype.scaled = function(scale) {
         vec3(this.matrix.col1).scaled(scale),
         vec3(this.matrix.col2).scaled(scale),
         vec3(this.matrix.col3).scaled(scale),
-        vec3(this.matrix.col4).scaled(scale)
+        this.matrix.col4 // Since using this as a transform, not scaling the translate
+        //vec3(this.matrix.col4).scaled(scale)
     );
 };
 
@@ -983,14 +1060,23 @@ ez.worldToScreen = function(point, objectTransform) {
 
     let screenSpacePos = vec3(cameraSpacePos);
     if(ez.useProjectionMatrix) {
-        let interp = +ez.useProjectionMatrix || 0 // Coerece to interpolation value if bool
-        let projectionMat = ez.projectionMatrixOverride || ez.createProjectionMatrix(90, ez.canvas.height / ez.canvas.width, 1, 1000);
-        let viewSpacePos = projectionMat.multiplyVec3(cameraSpacePos);
-        screenSpacePos.x = lerpClamp(cameraSpacePos.x, viewSpacePos.x, interp);
-        screenSpacePos.y = lerpClamp(cameraSpacePos.y, viewSpacePos.y, interp);
-        screenSpacePos.z = lerpClamp(cameraSpacePos.z, viewSpacePos.z, interp);
-    }
+        // Construct the projection mat from fov, aspect ratio, near plane distance, and far plane distance
+        let projectionMat = ez.projectionMatrixOverride || ez.createProjectionMatrix(deg_to_rad(90), ez.canvas.height / ez.canvas.width, 1, 1000);
+        // After the projection matrix is applied, it's called 'view space.' We still need to divide by w (original z coordinate) to apply perspective/vanishing point
+        let viewSpacePos = projectionMat.multiplyVec4(vec4(cameraSpacePos, 1.0));
+        // Apply perspective divide
+        console.log(viewSpacePos.w) // Just printing 0 always
+        let clipSpacePos = vec3(viewSpacePos.xyz).divide(viewSpacePos.w);
+        // Clip space is normalized between -1 and 1 on all axes, so to get back to screen size, multiply by half width and half height
+        let perspectiveScreenSpacePos = vec2(clipSpacePos.xy).multiply(vec2(ez.canvas.width/2, ez.canvas.height/2))
 
+        // Coerece to interpolation value if bool, allows for effects like smoothly transitioning from a 2D view to a 3D view
+        let interp = +ez.useProjectionMatrix || 0
+        // Interpolate between no projection matrix applied and resulting application value
+        screenSpacePos.x = lerpClamp(screenSpacePos.x, perspectiveScreenSpacePos.x, interp);
+        screenSpacePos.y = lerpClamp(screenSpacePos.y, perspectiveScreenSpacePos.y, interp);
+        screenSpacePos.z = lerpClamp(screenSpacePos.z, perspectiveScreenSpacePos.z, interp);
+    }
     if(ez.centerOrigin) {
         screenSpacePos = screenSpacePos.add(vec3(ez.canvas.width/2, ez.canvas.height/2, 0))
     }
@@ -1007,15 +1093,6 @@ ez.screenToWorld = function(pos) {
     // settings for camera, ndc, perspective divide, etc
 }
 
-ez.getMousePosWorld = function() {
-    let pos = vec3(ez.mousePos.x, ez.mousePos.y, 0);
-    return ez.screenToWorld(pos);
-}
-
-ez.getObjectTransformWithParents = function(obj) { return obj.transform }
-
-ez.getScreenRayNormal = function(x,y) {}
-
 ez.createProjectionMatrix = function(fov, aspect, near, far) {
     const f = 1.0 / Math.tan(fov / 2);
     const rangeInv = 1 / (near - far);
@@ -1026,6 +1103,11 @@ ez.createProjectionMatrix = function(fov, aspect, near, far) {
         [0, 0, (near + far) * rangeInv, -1],
         [0, 0, near * far * rangeInv * 2, 0]
     );
+}
+
+ez.getMousePosWorld = function() {
+    let pos = vec3(ez.mousePos.x, ez.mousePos.y, 0);
+    return ez.screenToWorld(pos);
 }
 
 ///////////////////////
@@ -1185,15 +1267,188 @@ ez.centerCamera = function() {
     ez.camera.setOrigin(vec3(-ez.canvas.width/2, ez.canvas.height/2, 0))
 }
 
+ez.makeVecBarycentric = function(p, a, b, c) {
+    const v0x = b.x - a.x, v0y = b.y - a.y;
+    const v1x = c.x - a.x, v1y = c.y - a.y;
+    const v2x = p.x - a.x, v2y = p.y - a.y;
+
+    const d00 = v0x * v0x + v0y * v0y;
+    const d01 = v0x * v1x + v0y * v1y;
+    const d11 = v1x * v1x + v1y * v1y;
+    const d20 = v2x * v0x + v2y * v0y;
+    const d21 = v2x * v1x + v2y * v1y;
+
+    const denom = d00 * d11 - d01 * d01;
+    const v = (d11 * d20 - d01 * d21) / denom;
+    const w = (d00 * d21 - d01 * d20) / denom;
+    const u = 1.0 - v - w;
+
+    return {u, v, w};
+};
+
+// Was getting bottlenecked by ctx.getImageData on large canvas so came up with this to draw triangles faster
+ez._blitCanvasSizes = [10, 20, 30, 40, 50, 100, 150, 200, 250, 500];
+ez._blitCanvasCache = new Map();
+
+ez._initializeCanvases = function() {
+    ez._blitCanvasSizes.forEach(size => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d", {willReadFrequently: true});
+        // Initialize canvas with a clear state
+        ctx.clearRect(0, 0, size, size);
+        ez._blitCanvasCache.set(size, { canvas, ctx });
+    });
+}
+
+// Function to select the appropriate canvas based on requested size
+ez._getMiniCanvasForBlit = function(width, height) {
+    // Find the smallest canvas size that fits the requested dimensions
+    const sizeNeeded = Math.max(width, height);
+    const selectedSize = ez._blitCanvasSizes.find(size => size >= sizeNeeded);
+    if (!selectedSize) {
+        throw new Error("Requested size exceeds maximum predefined canvas size.");
+    }
+    const { canvas, ctx } = ez._blitCanvasCache.get(selectedSize);
+    // Clear the canvas to ensure it's ready for new drawing operations
+    ctx.clearRect(0, 0, selectedSize, selectedSize);
+    const canvasImageData = ctx.getImageData(0, 0, selectedSize, selectedSize);
+    return [canvas, ctx, canvasImageData];
+}
+
+// Initialize canvases at the start
+ez._initializeCanvases();
+
+ez.drawTriangle = function(canvas, ctx, p0, p1, p2, color0="#000", color1="#000", color2="#000") {
+    color0 = ez.parseColorAsRGBAObj(color0);
+    color1 = ez.parseColorAsRGBAObj(color1);
+    color2 = ez.parseColorAsRGBAObj(color2);
+
+    var pointsAndColors = [{point: p0, color: color0}, {point: p1, color: color1}, {point: p2, color: color2}];
+
+    // Sort points (and their colors) by y-coordinate
+    pointsAndColors.sort((a, b) => a.point.y - b.point.y);
+
+    // Unpack sorted points and colors
+    [p0, p1, p2] = pointsAndColors.map(pc => vec2(pc.point).rounded());
+    [color0, color1, color2] = pointsAndColors.map(pc => pc.color);
+
+    let blitCanvas, blitCtx, imgData
+    let minX = Math.min(p0.x, p1.x, p2.x);
+    let minY = Math.min(p0.y, p1.y, p2.y);
+    let maxX = Math.max(p0.x, p1.x, p2.x);
+    let maxY = Math.max(p0.y, p1.y, p2.y);
+    if(Math.max(maxX + 1 - minX, maxY + 1 - minY) <= ez._blitCanvasSizes[ez._blitCanvasSizes.length - 1]) {
+        [blitCanvas, blitCtx, imgData] = ez._getMiniCanvasForBlit(maxX + 1 - minX, maxY + 1 - minY);
+        p0 = p0.sub([minX, minY]);
+        p1 = p1.sub([minX, minY]);
+        p2 = p2.sub([minX, minY]);
+    }
+    else {
+        blitCanvas = canvas
+        blitCtx = ctx
+        imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    var pixels = imgData.data;
+
+    const interpolate = function(p1, p2, y) {
+        if (p1.y === p2.y) return p1.x;
+        return ((y - p1.y) * (p2.x - p1.x)) / (p2.y - p1.y) + p1.x;
+    };
+
+    // Pre-calculate vector components for barycentric coordinates outside the loop
+    const v0x = p1.x - p0.x, v0y = p1.y - p0.y;
+    const v1x = p2.x - p0.x, v1y = p2.y - p0.y;
+    const d00 = v0x * v0x + v0y * v0y;
+    const d01 = v0x * v1x + v0y * v1y;
+    const d11 = v1x * v1x + v1y * v1y;
+    const denom = d00 * d11 - d01 * d01; // This stays constant for all pixels
+
+    // Draw from top to bottom using scanline algorithm
+    for (let y = p0.y; y <= p2.y; y++) {
+        var x0 = interpolate(p0, p2, y);
+        var x1 = (y < p1.y) ? interpolate(p0, p1, y) : interpolate(p1, p2, y);
+
+        if (x0 > x1) [x0, x1] = [x1, x0]; // Swap if x0 is to the right of x1
+
+        for (let x = Math.ceil(x0); x <= x1; x++) {
+            const v2x = x - p0.x, v2y = y - p0.y;
+            const d20 = v2x * v0x + v2y * v0y;
+            const d21 = v2x * v1x + v2y * v1y;
+            const v = (d11 * d20 - d01 * d21) / denom;
+            const w = (d00 * d21 - d01 * d20) / denom;
+            const u = 1.0 - v - w;
+
+            const r = u * color0.r + v * color1.r + w * color2.r;
+            const g = u * color0.g + v * color1.g + w * color2.g;
+            const b = u * color0.b + v * color1.b + w * color2.b;
+
+            const index = (x + y * imgData.width) * 4;
+            pixels[index] = r;
+            pixels[index + 1] = g;
+            pixels[index + 2] = b;
+            pixels[index + 3] = 255;
+        }
+    }
+
+    if(canvas === blitCanvas) {
+        ctx.putImageData(imgData, 0, 0);
+    }
+    else {
+        blitCtx.putImageData(imgData, 0, 0);
+        ctx.drawImage(blitCanvas, minX, minY);
+    }
+};
+
+// Create a canvas element dynamically
+ez._parseColorCanvas = document.createElement('canvas');
+ez._parseColorCanvas.width = 1;
+ez._parseColorCanvas.height = 1;
+ez._parseColorCanvasCtx = ez._parseColorCanvas.getContext('2d', {willReadFrequently: true});
+
 ez.parseColor = function(color) {
-    // // Check if the input is a valid hexadecimal number
+    // Check if the input is a valid hexadecimal number
     if (!isNaN(color) && color >= 0 && color <= 0xFFFFFF) {
         return `#${color.toString(16).padStart(6, '0').toUpperCase()}`;
     }
 
-    // If it's not a valid hex number, assume it's already in the correct format
-    return color;
-};  
+    // Try setting the color and filling a rectangle to sample the color
+    try {
+        //ez._parseColorCanvasCtx.clearRect(0,0,1,1);
+        ez._parseColorCanvasCtx.clearRect(0,0,1,1);
+        ez._parseColorCanvasCtx.fillStyle = color;
+        ez._parseColorCanvasCtx.fillRect(0, 0, 1, 1);
+        var imageData = ez._parseColorCanvasCtx.getImageData(0, 0, 1, 1).data;
+        
+        // Convert the RGBA color from the canvas to a hex string
+        var hexColor = "#" + ((1 << 24) + (imageData[0] << 16) + (imageData[1] << 8) + imageData[2]).toString(16).slice(1).toUpperCase();
+        return hexColor;
+    } catch (e) {
+        // If there's an error (invalid color), return black
+        console.error("Error parsing color:", e);
+        return "#000000";
+    }
+};
+
+ez.parseColorAsRGBAObj = function(color) {
+    let hexStr = ez.parseColor(color); // Assuming it returns a hex string like "#rrggbbaa" or "#rrggbb"
+
+    // Remove the '#' character if present
+    if (hexStr.startsWith('#')) {
+        hexStr = hexStr.substring(1);
+    }
+
+    // Parse the r, g, b values from the hex string
+    let r = parseInt(hexStr.substring(0, 2), 16);
+    let g = parseInt(hexStr.substring(2, 4), 16);
+    let b = parseInt(hexStr.substring(4, 6), 16);
+    let a = hexStr.length === 8 ? parseInt(hexStr.substring(6, 8), 16) / 255 : 1;
+
+    // Return the RGB object
+    return { r, g, b, a };
+}
 
 // Shorthand hacks for each draw type. fillAndStroke and allow passing in color for each.
 Object.entries(ez).forEach(([key,value]) => {

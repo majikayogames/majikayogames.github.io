@@ -13,9 +13,11 @@
 <body>
     <script src="ezdraw.js"></script>
     <script>
-        ez.centerOrigin = true
         let drawCanvas = ez.createCanvasAndAddToPage()
         let mainCanvas = ez.createCanvasAndAddToPage()
+        ez.centerOrigin = true
+        ez.camera.setOrigin(0,0,10);
+        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
         
         ez.onMouseDown(() => {
             ez.save()
@@ -33,30 +35,39 @@
             ez.bresenhamLineConnect(ez.lastMousePos, ez.mousePos).slice(1).forEach(pt => {
                 let r = ez.rect(pt, vec2(10, 10))
                 r.fill("#000000")
-                console.log("Filled")
-                console.log(r)
             })
             ez.restore()
         })
 
         function draw() {
             ez.clear()
-            ez.grid(100,50).stroke(0xbbbbbb)
+            ez.grid(1,50).stroke(0xbbbbbb)
             let interp = (Date.now() % 10000) / 10000 * (Math.PI*2);
-            ez.rect(ez.getMousePosWorld(),[100,100], interp).fillAndStroke("#aaddddaa")
-            ez.useProjectionMatrix = 1.0;
+            ez.rect(ez.getMousePosWorld(),[1,1], interp).fillAndStroke("#aaddddaa")
+            //ez.useProjectionMatrix = 1;
 
-            ez.rect(vec2(100,0).rotated(interp), [5,5]).fillAndStroke("red")
+            ez.rect(vec2(1,0).rotated(interp), [0.1,0.1]).fillAndStroke("red")
 
             ez.ctx.lineWidth = 1.5
             ez.line(vec2(0,-1000), vec2(0,1000)).stroke("grey")
             ez.line(vec2(-1000, 0), vec2(1000,0)).stroke("grey")
             ez.ctx.lineWidth = 3
-            ez.arrow(vec2(0,0),vec2(0,-100),15).fillAndStroke("green", "green")
-            ez.arrow(vec2(0,0),vec2(100,0),15).fillAndStroke("red", "red")
+            ez.arrow(vec2(0,0),vec2(0,1),15).fillAndStroke("green", "green")
+            ez.arrow(vec2(0,0),vec2(1,0),15).fillAndStroke("red", "red")
             ez.ctx.lineWidth = 1
 
-            ez.camera = ez.camera.rotated(vec3(0,1,0), 0.002)
+            let tri = ez.triangle(vec2(1,2), [-1,-1, 0,0, 1,-1], ["#FF0000", "#00FF00", "#0000FF"]);
+            tri.transform = tri.transform.rotated(vec3(0,0,1), interp);
+            tri.fill();
+            ez.triangle(vec2(1,2), [-1,-1, 0,-2, 1,-1], ["#FF0000", "#00FF00", "#0000FF"]).fill();
+            
+            const quad = ez.quad(vec2(-1,-2), [-1,1, 1,1, 1,-1, -1,-1], ["#000000", "#FFFFFF", "#FFFFFF", "#FFFFFF"]);
+            quad.transform = quad.transform.rotated(vec3(0,0,1), -0.2).scaled(2);
+            quad.fill();
+
+            ez.quad(vec2(-1,2), [-1,1, 1,1, 1,-1, -1,-1], ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]).fill();
+
+            //ez.camera = ez.camera.rotated(vec3(0,1,0), 0.002)
             requestAnimationFrame(draw);
         }
         draw();
