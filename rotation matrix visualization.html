@@ -19,7 +19,7 @@
         let planeCanvas = ez.createCanvasAndAddToPage()
         ez.canvas = mainCanvas;
         //mainCanvas.style.opacity = 0.1;
-        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1)); // y is up and 100 px = 1 unit
+        ez.camera = ez.camera.scaled(vec3(1 / 100, 1 / -100, 1)); // y is up and 100 px = 1 unit
         ez.centerOrigin = true;
 
         const data = {
@@ -28,7 +28,8 @@
             "Show rotated grid [G]": false,
             "Show normal & perpendicular as axes [N]": false,
             "Draw point as arrow instead [A]": false,
-            "abcd": [1,2,3,4,5],
+            "Draw many normals [M]": false,
+            "abcd": [1, 2, 3, 4, 5],
             "zzz": () => alert("Hi"),
             "testSection": {
                 "zzz": 123,
@@ -58,73 +59,67 @@
         }
         makeGui(data, dataCallbacks)
         document.onkeypress = (e) => {
-            if(e.key.toLowerCase() === "s") { data["Show plane [S]"] = !data["Show plane [S]"] }
-            else if(e.key.toLowerCase() === "g") { data["Show rotated grid [G]"] = !data["Show rotated grid [G]"] }
-            else if(e.key.toLowerCase() === "v") { data["Visualize position [V]"] = !data["Visualize position [V]"] }
-            else if(e.key.toLowerCase() === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
-            else if(e.key.toLowerCase() === "n") { data["Show normal & perpendicular as axes [N]"] = !data["Show normal & perpendicular as axes [N]"] }
+            if (e.key.toLowerCase() === "s") { data["Show plane [S]"] = !data["Show plane [S]"] }
+            else if (e.key.toLowerCase() === "g") { data["Show rotated grid [G]"] = !data["Show rotated grid [G]"] }
+            else if (e.key.toLowerCase() === "v") { data["Visualize position [V]"] = !data["Visualize position [V]"] }
+            else if (e.key.toLowerCase() === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
+            else if (e.key.toLowerCase() === "n") { data["Show normal & perpendicular as axes [N]"] = !data["Show normal & perpendicular as axes [N]"] }
+            else if (e.key.toLowerCase() === "m") { data["Draw many normals [M]"] = !data["Draw many normals [M]"] }
         }
 
-        function drawAnimatedGrid(point, timeMs = 0, xAxisOpacity = 1, yAxisOpacity = 1) {
+        function drawAxes(xAxisOpacity = 1, yAxisOpacity = 1) {
+            ez.save()
+            ez.ctx.globalAlpha = xAxisOpacity * ez.ctx.globalAlpha
+            ez.arrow(vec2(0, 0), vec2(0, 1), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
+            ez.restore()
+            ez.save()
+            ez.ctx.globalAlpha = yAxisOpacity * ez.ctx.globalAlpha
+            ez.arrow(vec2(0, 0), vec2(1, 0), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
+            ez.restore()
+        }
+
+        function drawAnimatedGrid(point, timeMs = 0) {
             point = vec2(point)
             ez.save()
 
             ez.ctx.lineWidth = 1
-            ez.grid(1,50).stroke(0xbbbbbb)
+            ez.grid(1, 50).stroke(0xbbbbbb)
 
             ez.ctx.lineWidth = 1.5
-            ez.line(vec2(0,-1000), vec2(0,1000)).stroke("grey")
-            ez.line(vec2(-1000, 0), vec2(1000,0)).stroke("grey")
+            ez.line(vec2(0, -1000), vec2(0, 1000)).stroke("grey")
+            ez.line(vec2(-1000, 0), vec2(1000, 0)).stroke("grey")
 
-            ez.save()
-                ez.ctx.globalAlpha = xAxisOpacity * ez.ctx.globalAlpha
-                ez.arrow(vec2(0,0),vec2(0,1),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round"})
-            ez.restore()
-            ez.save()
-                ez.ctx.globalAlpha = yAxisOpacity * ez.ctx.globalAlpha
-                ez.arrow(vec2(0,0),vec2(1,0),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round"})
-            ez.restore()
-
-
-            let numAdditionalArrowsNeeded = vec2(point).rounded()
-            const totalNeeded = Math.round(numAdditionalArrowsNeeded.x + numAdditionalArrowsNeeded.y);
-            const timePer = 500
-            const totalTime = timePer * totalNeeded
-            let xArrows = 0
-            let yArrows = 0
-            for(let i = 0; i < totalNeeded; i++) {
-                if(i * timePer > timeMs) break;
-                if(numAdditionalArrowsNeeded.x > 0) { // Skip x axis, will scale or slide it over in above anim
-                    if(xArrows > 0 || true){
-                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
-                        //console.log(numAdditionalArrowsNeeded)
-                        let myTime = timeMs - timePer*i
-                        let interp = lerpClamp(0, 1, (myTime / timePer));
-                        ez.arrow(arrowStart,arrowStart.add([interp,0]),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
-                    }
-                    numAdditionalArrowsNeeded.x--;
-                    xArrows++
+            let curPos = vec2(0,0);
+            let timeUsed = 0;
+            const totalNeeded = vec2(point).abs().x + vec2(point).abs().y;
+            const timePerUnit = 500
+            const totalTime = timePerUnit * totalNeeded
+            let i = 0;
+            while(point.sub(curPos).length() > 0.00001 && timeUsed < totalTime - 0.00001) {
+                let diff = point.sub(curPos);
+                let moved = 0;
+                let timePerThis = 0;
+                if(diff.abs().x > 0.00001) {
+                    let moved = Math.max(-1, Math.min(1, diff.x))
+                    timePerThis = timePerUnit * Math.abs(moved);
+                    let myTime = Math.min(timePerThis, timeMs - timeUsed);
+                    let interp = lerpClamp(0, 1, (myTime / timePerThis));
+                    let interpX = interp * moved;
+                    ez.arrow(curPos, curPos.add([interpX, 0]), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
+                    curPos.x += moved
                 }
-                else if(numAdditionalArrowsNeeded.y > 0) {
-                    if(yArrows === 0 && false) { // For first y, slide over from yaxis
-                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
-                        let myTime = timeMs - timePer*i
-                        let interp = lerpClamp(0, 1, (myTime / timePer));
-                        arrowStart.x = point.x * interp;
-                        ez.arrow(arrowStart,arrowStart.add([0,1]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
-                    }
-                    else {
-                        //console.log(numAdditionalArrowsNeeded)
-                        let myTime = timeMs - timePer*i
-                        let interp = lerpClamp(0, 1, (myTime / timePer));
-                        let arrowStart = point.sub(numAdditionalArrowsNeeded);
-                        ez.arrow(arrowStart,arrowStart.add([0,interp]),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha})
-                    }
-                    numAdditionalArrowsNeeded.y--;
-                    yArrows++
+                else if(diff.abs().y > 0.00001) {
+                    let moved = Math.max(-1, Math.min(1, diff.y))
+                    timePerThis = timePerUnit * Math.abs(moved);
+                    let myTime = Math.min(timePerThis, timeMs - timeUsed);
+                    let interp = lerpClamp(0, 1, (myTime / timePerThis));
+                    let interpY = interp * moved;
+                    ez.arrow(curPos, curPos.add([0, interpY]), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
+                    curPos.y += moved
                 }
+                i++;
+                timeUsed += timePerThis;
             }
-            
             ez.restore()
         }
 
@@ -137,24 +132,24 @@
         })
         ez.onMouseDrag((delta) => {
             let showRotatedGrid = ez.smoothVar("showRotatedGrid");
-            if(movingPoint) {
+            if (movingPoint) {
                 data["Visualize position [V]"] = false
                 let mousePos = ez.getMousePosWorld()
-                if(!showRotatedGrid) {
-                    if(mousePos.rounded().sub(mousePos).abs().length() < 0.06) {
+                if (!showRotatedGrid) {
+                    if (mousePos.rounded().sub(mousePos).abs().length() < 0.06) {
                         mousePos = mousePos.rounded();
                     }
                 }
-                let rotMat = mat3x4().rotated(vec3(0,0,-1), rotatedAng)
+                let rotMat = mat3x4().rotated(vec3(0, 0, -1), rotatedAng)
                 pt = vec2(rotMat.multiplyVec3(vec3(mousePos, 0)).xy)
-                if(showRotatedGrid) {
-                    if(pt.rounded().sub(pt).abs().length() < 0.06) {
+                if (showRotatedGrid) {
+                    if (pt.rounded().sub(pt).abs().length() < 0.06) {
                         pt = pt.rounded();
                     }
                 }
             }
             else {
-                if(!showRotatedGrid) {
+                if (!showRotatedGrid) {
                     data["Visualize position [V]"] = false
                 }
                 let last = ez.screenToWorld(ez.lastMousePos);
@@ -167,28 +162,29 @@
             //console.log(ez.getMousePosWorld())
         })
 
-        let pt = vec2(2,1)
+        let pt = vec2(2, 1)
 
         function getPtPosMainGrid() {
-            return mat3x4().rotated(vec3(0,0,-1), -rotatedAng).multiplyVec3(vec3(pt, 0))
+            return mat3x4().rotated(vec3(0, 0, -1), -rotatedAng).multiplyVec3(vec3(pt, 0))
         }
 
         function draw() {
             let showRotatedGrid = ez.smoothVar("showRotatedGrid", data["Show rotated grid [G]"] ? 1 : 0, 250)
 
-            const normalMainGrid = vec2(mat3x4().rotated(vec3(0,0,1), rotatedAng).multiplyVec3(vec3(0,1,0)));
+            const normalMainGrid = vec2(mat3x4().rotated(vec3(0, 0, 1), rotatedAng).multiplyVec3(vec3(0, 1, 0)));
 
             //ez.camera.setOrigin(vec3(-1,2,0));
             // Draw main grid
             ez.clear()
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid) * 0.9 + 0.1;
             drawAnimatedGrid(getPtPosMainGrid(), animatingVisualization && !showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0)
+            drawAxes()
 
             // Draw rotated grid
             ez.save()
             ez.canvas = rotatedCanvas
             ez.clear()
-            ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
+            ez.camera = ez.camera.rotated(vec3(0, 0, 1), rotatedAng)
             ez.ctx.globalAlpha = showRotatedGrid
             drawAnimatedGrid(pt, animatingVisualization && showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0, 0, 0)
             ez.restore()
@@ -198,28 +194,36 @@
             ez.canvas = planeCanvas
             ez.clear()
             ez.ctx.globalAlpha = ez.smoothVar("showPlane", data["Show plane [S]"] ? 1 : 0, 250)
-            ez.camera = ez.camera.rotated(vec3(0,0,1), rotatedAng)
-            ez.line([-1.5,0],[1.5,0]).stroke("grey", {lineWidth: 4});
-            ez.arrow(vec2(0,0),vec2(0,1),10).fillAndStroke("black", "black", {lineWidth: 2, lineJoin: "round"})
-            if(data["Draw point as arrow instead [A]"]) {
-                ez.arrow(vec2(0,0), pt, 5).fillAndStroke("black", "black")
+            ez.camera = ez.camera.rotated(vec3(0, 0, 1), rotatedAng)
+            ez.line([-1.5, 0], [1.5, 0]).stroke("grey", { lineWidth: 4 });
+            if (data["Draw many normals [M]"]) {
+                for(let i = 0; i < 10; i++) {
+                    const x = -1.4 + (i/10)*3
+                    ez.arrow(vec2(x,0), vec2(x, 0).add(vec2(Math.sin(i)*0.2, 1).normalized()), 5).fillAndStroke("black", "black")
+                }
             }
             else {
-                ez.circle(pt, 5).fillAndStroke("black", "lightblue");
+                ez.arrow(vec2(0, 0), vec2(0, 1), 10).fillAndStroke("black", "black", { lineWidth: 2, lineJoin: "round" })
+                if (data["Draw point as arrow instead [A]"]) {
+                    ez.arrow(vec2(0, 0), pt, 5).fillAndStroke("black", "black")
+                }
+                else {
+                    ez.circle(pt, 5).fillAndStroke("black", "lightblue");
+                }
             }
 
 
             ez.save()
-                ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords");
-                ez.arrow(vec2(0,0),vec2(0,1),15).fillAndStroke("green", "green", {lineWidth: 2, lineJoin: "round"})
-                ez.arrow(vec2(0,0),vec2(1,0),15).fillAndStroke("red", "red", {lineWidth: 2, lineJoin: "round"})
+            ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords");
+            ez.arrow(vec2(0, 0), vec2(0, 1), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
+            ez.arrow(vec2(0, 0), vec2(1, 0), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
             ez.restore()
 
             ez.restore()
 
             ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords", data["Show normal & perpendicular as axes [N]"] ? 1 : 0, 250);
-            ez.text("Normal: ("+normalMainGrid.xy.map(n => n.toFixed(1))+")", [-2, 2], {fontStyle: "bold italic", textAlign: "right"}).fill("green")
-            ez.text("Normal rotated 90°: ("+normalMainGrid.multiply([1,-1]).yx.map(n => n.toFixed(1))+")", [-2, 1.5], {fontStyle: "bold italic", textAlign: "right"}).fill("red")
+            ez.text("Normal: (" + normalMainGrid.xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
+            ez.text("Normal rotated 90°: (" + normalMainGrid.multiply([-1, 1]).yx.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
             //ez.text("Position: ("+getPtPosMainGrid().xy.map(n => n.toFixed(1))+")", getPtPosMainGrid().add([0,0.5]), {fontStyle: "bold italic"}).fill()

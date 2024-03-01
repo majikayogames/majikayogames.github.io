@@ -557,9 +557,9 @@ ez.triangle.prototype.stroke = function(color) {
     };
     
     // Draw lines between the points and interpolate colors
-    drawLineAndInterpolateColors(p0, p1, color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1]);
-    drawLineAndInterpolateColors(p1, p2, color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]);
-    drawLineAndInterpolateColors(p2, p0, color !== undefined ? color : this.colors[2], color !== undefined ? color : this.colors[0]);
+    drawLineAndInterpolateColors(p0, p1, color ?? this.colors[0], color ?? this.colors[1]);
+    drawLineAndInterpolateColors(p1, p2, color ?? this.colors[1], color ?? this.colors[2]);
+    drawLineAndInterpolateColors(p2, p0, color ?? this.colors[2], color ?? this.colors[0]);
 
     ez.restore();
 };
@@ -574,7 +574,7 @@ ez.triangle.prototype.fill = function(color) {
 
     // Loop through a bounding box around the triangle and fill in pixels
     const [p0, p1, p2] = transformedPoints.map(p => vec2(p));
-    ez.drawTriangle(ez.canvas, ez.ctx, p0, p1, p2, color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]);
+    ez.drawTriangle(ez.canvas, ez.ctx, p0, p1, p2, color ?? this.colors[0], color ?? this.colors[1], color ?? this.colors[2]);
 
     ez.restore();
 };
@@ -594,10 +594,10 @@ ez.quad = function ezQuad(pos, points, colors) {
     this.transform.setOrigin(this.pos);
 };
 
-ez.quad.prototype.getTriangles = function(color) {
+ez.quad.prototype.getTriangles = function() {
     // Colors for the triangles (assuming colors are ordered in the same way as points)
-    const colorsTriangle1 = [color !== undefined ? color : this.colors[0], color !== undefined ? color : this.colors[1], color !== undefined ? color : this.colors[2]];
-    const colorsTriangle2 = [color !== undefined ? color : this.colors[2], color !== undefined ? color : this.colors[3], color !== undefined ? color : this.colors[0]];
+    const colorsTriangle1 = [this.colors[0], this.colors[1], this.colors[2]];
+    const colorsTriangle2 = [this.colors[2], this.colors[3], this.colors[0]];
 
     // Create and render the first triangle
     let triangle1 = ez.triangle(this.pos, [this.points[0], this.points[1], this.points[2]], colorsTriangle1);
@@ -611,15 +611,15 @@ ez.quad.prototype.getTriangles = function(color) {
 }
 
 ez.quad.prototype.fill = function(color) {
-    const tris = this.getTriangles(color);
-    tris[0].fill();
-    tris[1].fill();
+    const tris = this.getTriangles();
+    tris[0].fill(color);
+    tris[1].fill(color);
 };
 
 ez.quad.prototype.stroke = function(color) {
-    const tris = this.getTriangles(color);
-    tris[0].stroke();
-    tris[1].stroke();
+    const tris = this.getTriangles();
+    tris[0].stroke(color);
+    tris[1].stroke(color);
 };
 
 

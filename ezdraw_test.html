@@ -65,7 +65,7 @@
             quad.transform = quad.transform.rotated(vec3(0,0,1), -interp);
             quad.fillAndStroke();
 
-            ez.quad(vec2(-3,2), [-1,1, 1,1, 1,-1, -1,-1], ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]).fill();
+            ez.quad(vec2(-3,2), [-1,1, 1,1, 1,-1, -1,-1], ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]).fillAndStroke();
 
             //ez.camera = ez.camera.rotated(vec3(0,1,0), 0.002)
             requestAnimationFrame(draw);
