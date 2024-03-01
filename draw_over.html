@@ -15,6 +15,7 @@
         #img_element {
             position: absolute;
         }
+
         #img_element {
             max-height: 100%;
             line-height: 0;
@@ -63,8 +64,10 @@
     Draw color 4:
     <input type="text" id="draw_color_4" value="#0033ff" data-coloris>
     Draw width:
-    <input type="range" value="5" min="1" max="100" oninput="this.nextElementSibling.value = this.value; updateCursor()">
-    <input type="number" oninput="this.previousElementSibling.value = this.value; updateCursor()" value="5" id="line_width"></input>
+    <input type="range" value="5" min="1" max="100"
+        oninput="this.nextElementSibling.value = this.value; updateCursor()">
+    <input type="number" oninput="this.previousElementSibling.value = this.value; updateCursor()" value="5"
+        id="line_width"></input>
 
     <br /><br />
 
@@ -79,7 +82,7 @@
             Press keys 1 through 4 to select from the draw color presets set above.
         </span>
         <video id="video_player" title></video>
-        <img id="img_element" style="display: none; margin: 0;" title/>
+        <img id="img_element" style="display: none; margin: 0;" title />
         <canvas id="video_overlay" width="1360" height="768" title></canvas>
         <div style="width: 100%; height: 100%; overflow: clip !important; position: relative; pointer-events: none;">
             <div class="cursor"></div>
@@ -139,11 +142,9 @@
         ez.canvas = $("#video_overlay")
         //commitUndoRedoState(ez.canvas);
 
-        console.log(ez.canvas)
-
         let curDrawColor = 1;
         function getDrawColor() {
-            return $("#draw_color_"+curDrawColor).value;
+            return $("#draw_color_" + curDrawColor).value;
         }
 
 
@@ -197,15 +198,15 @@
     <script>
         //Keyboard shortcuts
         document.addEventListener("keypress", function (e) {
-            if(e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) {
+            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) {
                 return
             }
-            
+
             if (e.key === "f") {
                 toggleFullScreen();
 
             }
-            else if(e.key === "m") {
+            else if (e.key === "m") {
                 $("video").muted = !$("video").muted;
             }
             else if (e.key === " ") {
@@ -227,10 +228,10 @@
                     videoPlayer.pause()
                 }
             }
-            else if(e.key === "1") { curDrawColor = 1; }
-            else if(e.key === "2") { curDrawColor = 2; }
-            else if(e.key === "3") { curDrawColor = 3; }
-            else if(e.key === "4") { curDrawColor = 4; }
+            else if (e.key === "1") { curDrawColor = 1; }
+            else if (e.key === "2") { curDrawColor = 2; }
+            else if (e.key === "3") { curDrawColor = 3; }
+            else if (e.key === "4") { curDrawColor = 4; }
             else {
                 return;
             }
@@ -238,7 +239,7 @@
         })
 
         document.addEventListener("keydown", function (e) {
-            if(e.key === "Backspace") {
+            if (e.key === "Backspace") {
                 commitUndoRedoState(ez.canvas);
                 ez.clear();
                 //clearUndoRedoState();
@@ -270,15 +271,29 @@
         let drawingOnImg = false;
 
         function adjustCanvasSize() {
-            // Adjust the canvas size to match the video player
-            videoOverlay.width = videoPlayer.videoWidth;
-            videoOverlay.height = videoPlayer.videoHeight;
-            // Also adjust the video container to match the video size
-            videoContainer.style.width = videoPlayer.videoWidth + 'px';
-            videoContainer.style.height = videoPlayer.videoHeight + 'px';
+            if (drawingOnImg) {
+                // Need to do this to get real size of image
+                var img = new Image();
+                img.onload = function() {
+                    videoOverlay.width = img.width;
+                    videoOverlay.height = img.height;
+                    videoContainer.style.width = img.width + 'px';
+                    videoContainer.style.height = img.height + 'px';
+                }
+                img.src = document.getElementById("img_element").src;
+            }
+            else {
+                // Adjust the canvas size to match the video player
+                videoOverlay.width = videoPlayer.videoWidth;
+                videoOverlay.height = videoPlayer.videoHeight;
+                // Also adjust the video container to match the video size
+                videoContainer.style.width = videoPlayer.videoWidth + 'px';
+                videoContainer.style.height = videoPlayer.videoHeight + 'px';
+            }
         }
 
         videoPlayer.addEventListener('loadedmetadata', adjustCanvasSize);
+        document.getElementById("img_element").addEventListener("load", adjustCanvasSize);
 
         dropZone.addEventListener('dragover', function (e) {
             e.preventDefault();
@@ -354,7 +369,6 @@
                 } else if (videoContainer.msRequestFullscreen) { /* IE/Edge */
                     videoContainer.msRequestFullscreen();
                 }
-                $("canvas").style.border = "";
             } else {
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
@@ -365,7 +379,6 @@
                 } else if (document.msExitFullscreen) { /* IE/Edge */
                     document.msExitFullscreen();
                 }
-                $("canvas").style.border = "1px solid black";
             }
         }
     </script>
