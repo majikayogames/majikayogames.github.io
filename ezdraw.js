@@ -110,6 +110,7 @@ ez._update = function() {
 
 ez.keys = {};
 ez.mousePos = new vec2(0, 0);
+ez.lastMousePos = new vec2(0, 0);
 
 ez.keyPressCallbacks = {};
 ez.keyDownCallbacks = {};
@@ -119,10 +120,49 @@ ez.mouseDownCallbacks = [];
 ez.mouseDragCallbacks = [];
 ez.mouseDragEndCallbacks = [];
 ez.mouseLeaveCallbacks = [];
+ez.mouseWheelCallbacks = [];
 ez.mouseDown = { left: false, middle: false, right: false };
 ez.isDragging = false;
-ez.lastMousePos = new vec2(0, 0);
 ez.curCanvasMouseOver = null;
+
+ez.mousePosGlobal = new vec2(0, 0);
+ez.lastMousePosGlobal = new vec2(0, 0);
+document.addEventListener("pointerdown", (event) => {
+    ez.mousePosGlobal = vec2(event.pageX, event.pageY);
+});
+
+document.addEventListener("pointermove", (event) => {
+    ez.lastMousePosGlobal = ez.mousePosGlobal;
+    ez.mousePosGlobal = vec2(event.pageX, event.pageY);
+});
+
+document.addEventListener('keydown', function(event) {
+    ez.keys[event.key] = true;
+});
+
+document.addEventListener('keyup', function(event) {
+    ez.keys[event.key] = false;
+});
+
+document.addEventListener('keypress', function(event) {
+    if (ez.keyPressCallbacks[event.key]) {
+        ez.keyPressCallbacks[event.key].forEach(cb => cb(event));
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    ez.keys[event.key] = true;
+    if (ez.keyDownCallbacks[event.key]) {
+        ez.keyDownCallbacks[event.key].forEach(cb => cb(event));
+    }
+});
+
+document.addEventListener('keyup', function(event) {
+    ez.keys[event.key] = false;
+    if (ez.keyUpCallbacks[event.key]) {
+        ez.keyUpCallbacks[event.key].forEach(cb => cb(event));
+    }
+});
 
 ez.onKeyPress = function(key, callback) {
     if (!ez.keyPressCallbacks[key]) {
@@ -170,6 +210,10 @@ ez.onMouseDragEnd = function(callback) {
     ez.mouseDragEndCallbacks.push(callback);
 };
 
+ez.onMouseWheel = function(callback) {
+    ez.mouseWheelCallbacks.push(callback);
+}
+
 ez.onMouseLeave = function(callback) {
     ez.mouseLeaveCallbacks.push(callback);
 };
@@ -186,41 +230,14 @@ ez.addInputEventListeners = function(canvas) {
     if (canvas.ezEventListenersAdded) return; // Prevent multiple bindings
     canvas.ezEventListenersAdded = true;
 
-    canvas.addEventListener('keydown', function(event) {
-        ez.keys[event.key] = true;
-    });
-
-    canvas.addEventListener('keyup', function(event) {
-        ez.keys[event.key] = false;
-    });
-    canvas.addEventListener('keypress', function(event) {
-        if (ez.keyPressCallbacks[event.key]) {
-            ez.keyPressCallbacks[event.key].forEach(cb => cb());
-        }
-    });
-
-    canvas.addEventListener('keydown', function(event) {
-        ez.keys[event.key] = true;
-        if (ez.keyDownCallbacks[event.key]) {
-            ez.keyDownCallbacks[event.key].forEach(cb => cb());
-        }
-    });
-
-    canvas.addEventListener('keyup', function(event) {
-        ez.keys[event.key] = false;
-        if (ez.keyUpCallbacks[event.key]) {
-            ez.keyUpCallbacks[event.key].forEach(cb => cb());
-        }
-    });
-
     canvas.addEventListener('pointerdown', function(event) {
         ez.curCanvasMouseOver = canvas;
         let rect = canvas.getBoundingClientRect();
         ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseDown.left = event.button === 0;
-        ez.mouseDown.middle = event.button === 1;
-        ez.mouseDown.right = event.button === 2;
-        ez.mouseDownCallbacks.forEach(cb => cb());
+        if(event.button === 0) ez.mouseDown.left = true;
+        if(event.button === 1) ez.mouseDown.middle = true;
+        if(event.button === 2) ez.mouseDown.right = true;
+        ez.mouseDownCallbacks.forEach(cb => cb(event));
         ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
     });
 
@@ -228,13 +245,13 @@ ez.addInputEventListeners = function(canvas) {
         ez.curCanvasMouseOver = canvas;
         let rect = canvas.getBoundingClientRect();
         ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseMoveCallbacks.forEach(cb => cb(ez.mousePos));
-        if(ez.isMouseDown("left")) {
+        ez.mouseMoveCallbacks.forEach(cb => cb(event));
+        if(ez.isMouseDown("left") || ez.isMouseDown("middle") || ez.isMouseDown("right")) {
             ez.isDragging = true;
         }
         if (ez.isDragging) {
             let delta = ez.mousePos.sub(ez.lastMousePos);
-            ez.mouseDragCallbacks.forEach(cb => cb(delta));
+            ez.mouseDragCallbacks.forEach(cb => cb(event, delta));
         }
         ez.lastMousePos = ez.mousePos;
     });
@@ -243,12 +260,12 @@ ez.addInputEventListeners = function(canvas) {
         ez.curCanvasMouseOver = canvas;
         let rect = canvas.getBoundingClientRect();
         ez.mousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
-        ez.mouseDown.left = !(event.button === 0);
-        ez.mouseDown.middle = !(event.button === 1);
-        ez.mouseDown.right = !(event.button === 2);
+        if(event.button === 0) ez.mouseDown.left = false;
+        if(event.button === 1) ez.mouseDown.middle = false;
+        if(event.button === 2) ez.mouseDown.right = false;
         if (ez.isDragging) {
             ez.isDragging = false;
-            ez.mouseDragEndCallbacks.forEach(cb => cb());
+            ez.mouseDragEndCallbacks.forEach(cb => cb(event));
         }
         ez.lastMousePos = new vec2(event.clientX - rect.left, event.clientY - rect.top);
     });
@@ -257,9 +274,13 @@ ez.addInputEventListeners = function(canvas) {
         ez.isDragging = false;
         ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
         ez.curCanvasMouseOver = null;
-        ez.mouseDragEndCallbacks.forEach(cb => cb());
-        ez.mouseLeaveCallbacks.forEach(cb => cb());
+        ez.mouseDragEndCallbacks.forEach(cb => cb(event));
+        ez.mouseLeaveCallbacks.forEach(cb => cb(event));
     });
+
+    document.addEventListener('wheel', function(event) {
+        ez.mouseWheelCallbacks.forEach(cb => cb(event));
+    })
 };
 
 ///////////////////
@@ -651,7 +672,7 @@ vec2.prototype.scale = vec2.prototype.scaled = vec2.prototype.multiply = functio
     }
 }
 vec2.prototype.magnitude = vec2.prototype.mag = vec2.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y); }
-vec2.prototype.duplicate = function() { return vec2(this.x, this.y); }
+vec2.prototype.duplicate = vec2.prototype.clone = function() { return vec2(this.x, this.y); }
 vec2.prototype.normalized = function() { return vec2(this.x / this.magnitude(), this.y / this.magnitude()); };
 vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.round(this.x), Math.round(this.y)); };
 vec2.prototype.floor = vec2.prototype.floored = function() { return vec2(Math.floor(this.x), Math.floor(this.y)); };
@@ -698,7 +719,7 @@ vec3.prototype.scale = vec3.prototype.scaled = vec3.prototype.multiply = functio
     }
 }
 vec3.prototype.magnitude = vec3.prototype.mag = vec3.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
-vec3.prototype.duplicate = function() { return vec3(this.x, this.y, this.z); }
+vec3.prototype.duplicate = vec3.prototype.clone = function() { return vec3(this.x, this.y, this.z); }
 vec3.prototype.normalized = function() { return new vec3(this.x / this.magnitude(), this.y / this.magnitude(), this.z / this.magnitude()); };
 vec3.prototype.rounded = vec3.prototype.round = function() { return vec3(Math.round(this.x), Math.round(this.y), Math.round(this.z)); };
 vec3.prototype.floored = vec3.prototype.floor = function() { return vec3(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z)); };

@@ -17,7 +17,6 @@
         }
 
         #img_element {
-            max-height: 100%;
             line-height: 0;
         }
 
@@ -72,20 +71,22 @@
     <br /><br />
 
     <div id="video_container" style="width: 1360px; height: 768px; position: relative; background-color: #fff;" title>
-        <span style="position: absolute;">
-            Drag and drop or copy paste a video or image to draw over it.
-            <br />
-            F for fullscreen. Space to play/pause. M to mute/unmute.
-            <br />
-            Backspace to clear. Ctrl-Z and Ctrl-Shift-Z or Ctrl Y to undo/redo.
-            <br />
-            Press keys 1 through 4 to select from the draw color presets set above.
-        </span>
-        <video id="video_player" title></video>
-        <img id="img_element" style="display: none; margin: 0;" title />
-        <canvas id="video_overlay" width="1360" height="768" title></canvas>
-        <div style="width: 100%; height: 100%; overflow: clip !important; position: relative; pointer-events: none;">
-            <div class="cursor"></div>
+        <div id="pan_zoom_div" style="width: 100%; height: 100%; position: relative; image-rendering: pixelated;">
+            <span style="position: absolute;">
+                Drag and drop or copy paste a video or image to draw over it.
+                <br />
+                F for fullscreen. Space to play/pause. M to mute/unmute.
+                <br />
+                Backspace to clear. Ctrl-Z and Ctrl-Shift-Z or Ctrl Y to undo/redo.
+                <br />
+                Press keys 1 through 4 to select from the draw color presets set above.
+            </span>
+            <video id="video_player" title></video>
+            <img id="img_element" style="display: none; margin: 0;" title />
+            <canvas id="video_overlay" width="1360" height="768" title></canvas>
+            <div style="width: 100%; height: 100%; position: relative; pointer-events: none;">
+                <div class="cursor"></div>
+            </div>
         </div>
     </div>
 
@@ -94,37 +95,45 @@
     <script>
         let undoStack = [];
         let redoStack = [];
+        let curState = null;
 
-        function commitUndoRedoState(canvas) {
-            const state = canvas.toDataURL(); // Capture current canvas state as a data URL
-            undoStack.push(state); // Push this state onto the undo stack
+        function saveState(canvas) {
+            if(curState)
+                undoStack.push(curState); // Push this state onto the undo stack
+            curState = canvas.toDataURL(); // Capture current canvas state as a data URL
             redoStack = []; // Clear redo stack whenever a new action is committed
         }
 
         function clearUndoRedoState() {
             undoStack = []
             redoStack = []
+            curState = null;
         }
 
         function undo(canvas, ctx) {
-            if (undoStack.length > 0) {
-                const currentState = undoStack.pop(); // Pop the last state
-                redoStack.push(canvas.toDataURL()); // Save the current state to the redo stack
-
-                // Restore the canvas to the last state
-                const img = new Image();
-                img.onload = function () {
+            if(curState) {
+                redoStack.push(curState); // Save the current state to the redo stack
+                if(undoStack.length) {
+                    // Restore the canvas to the last state
+                    const img = new Image();
+                    img.onload = function () {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+                        ctx.drawImage(img, 0, 0); // Draw the previous state
+                    };
+                    img.src = curState = undoStack.pop();
+                }
+                else {
                     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-                    ctx.drawImage(img, 0, 0); // Draw the previous state
-                };
-                img.src = currentState;
+                    curState = null;
+                }
             }
         }
 
         function redo(canvas, ctx) {
             if (redoStack.length > 0) {
-                const state = redoStack.pop(); // Pop the state to redo
-                undoStack.push(canvas.toDataURL()); // Save the current state to the undo stack
+                if(curState)
+                    undoStack.push(curState);
+                curState = redoStack.pop(); // Pop the state to redo
 
                 // Restore the canvas to the redone state
                 const img = new Image();
@@ -132,7 +141,7 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
                     ctx.drawImage(img, 0, 0); // Draw the redone state
                 };
-                img.src = state;
+                img.src = curState;
             }
         }
     </script>
@@ -147,13 +156,51 @@
             return $("#draw_color_" + curDrawColor).value;
         }
 
-
-        ez.onMouseDown(() => {
-            commitUndoRedoState(ez.canvas);
-            ez.path([ez.getMousePos(), ez.getMousePos()]).stroke(getDrawColor(), { lineWidth: $("#line_width").value, lineCap: "round" })
+        ez.onMouseDown((event) => {
+            if(ez.button === 0) {
+                ez.path([ez.getMousePos(), ez.getMousePos()]).stroke(getDrawColor(), { lineWidth: $("#line_width").value, lineCap: "round" })
+                event.preventDefault();
+            }
+            else if(event.button === 1) {
+                event.preventDefault();
+            }
         })
-        ez.onMouseDrag((deltaPos) => {
-            ez.path(ez.bresenhamLineConnect(ez.lastMousePos, ez.mousePos)).stroke(getDrawColor(), { lineWidth: $("#line_width").value, lineCap: "round" })
+        ez.onMouseDrag((event, deltaPos) => {
+            //let altOrM = event.altKey || ez.isKeyDown("m") || ez.isKeyDown("M");
+            if(ez.isMouseDown("left")){// && !altOrM) {
+                ez.path([ez.lastMousePos, ez.mousePos]).stroke(getDrawColor(), { lineWidth: $("#line_width").value, lineCap: "round" })
+            }
+        })
+
+        let curZoom = 1;
+        function setZoom(zoom, centerZoomAroundMouse = false) {
+            let preMousePos = ez.mousePos;
+            let zoomRatio = zoom/curZoom;
+            curZoom = zoom;
+            $("#pan_zoom_div").style.zoom = (zoom*100)+"%";
+            if(centerZoomAroundMouse) {
+                let mousePosRel = ez.mousePosGlobal.sub(vec2($("#pan_zoom_div").offsetLeft, $("#pan_zoom_div").offsetTop));
+                setPan(curPan.sub(ez.mousePosGlobal.multiply(zoomRatio).sub(ez.mousePosGlobal)))
+            }
+        }
+        let curPan = vec2();
+        function setPan(newPan) {
+            curPan = newPan;
+            $("#pan_zoom_div").style.left = curPan.x + "px";
+            $("#pan_zoom_div").style.top = curPan.y + "px";
+        }
+        // document.addEventListener("wheel", (event) => {
+        //     if(!document.fullscreenElement && false) {
+        //         return
+        //     }
+        //     let newZoom = curZoom + (event.deltaY > 0 ? -0.1 : 0.1);
+        //     newZoom = Math.max(1, newZoom);
+        //     setZoom(newZoom, true);
+        //     event.preventDefault();
+        // })
+
+        ez.onMouseDragEnd(() => {
+            saveState(ez.canvas);
         })
 
         function lerp(start, end, t) {
@@ -240,7 +287,7 @@
 
         document.addEventListener("keydown", function (e) {
             if (e.key === "Backspace") {
-                commitUndoRedoState(ez.canvas);
+                saveState(ez.canvas);
                 ez.clear();
                 //clearUndoRedoState();
             }
@@ -279,6 +326,8 @@
                     videoOverlay.height = img.height;
                     videoContainer.style.width = img.width + 'px';
                     videoContainer.style.height = img.height + 'px';
+                    ez.clear();
+                    clearUndoRedoState();
                 }
                 img.src = document.getElementById("img_element").src;
             }
@@ -289,6 +338,8 @@
                 // Also adjust the video container to match the video size
                 videoContainer.style.width = videoPlayer.videoWidth + 'px';
                 videoContainer.style.height = videoPlayer.videoHeight + 'px';
+                ez.clear();
+                clearUndoRedoState();
             }
         }
 
@@ -317,7 +368,6 @@
                 videoPlayer.play();
                 videoPlayer.style.display = ''; // Ensure video player is visible
                 document.getElementById('img_element').style.display = 'none'; // Hide image element
-                clearUndoRedoState();
             } else if (file.type.startsWith('image/')) {
                 // Handling image files
                 const url = URL.createObjectURL(file);
@@ -327,7 +377,6 @@
                 videoPlayer.pause();
                 videoPlayer.src = ''; // Clear video source
                 drawingOnImg = true
-                clearUndoRedoState();
             } else {
                 alert('Please paste a video or image file.');
             }
@@ -380,6 +429,9 @@
                     document.msExitFullscreen();
                 }
             }
+
+            setZoom(1);
+            setPan(vec2());
         }
     </script>
 

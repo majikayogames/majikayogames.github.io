@@ -130,7 +130,7 @@
         ez.onMouseDown(() => {
             movingPoint = ez.getMousePosWorld().sub(getPtPosMainGrid()).length() < 0.2;
         })
-        ez.onMouseDrag((delta) => {
+        ez.onMouseDrag((event, delta) => {
             let showRotatedGrid = ez.smoothVar("showRotatedGrid");
             if (movingPoint) {
                 data["Visualize position [V]"] = false
