@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Dungeon Generator</title>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #gui-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="gui-container"></div>
+    
+    <script src="three.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dat.gui/build/dat.gui.min.js"></script>
+
+    <script src="algorithm.js"></script>
+    <script src="camera.js"></script>
+    <script src="gui.js"></script>
+    <script src="dungeon_renderer.js"></script>
+    <script src="script.js"></script>
+
+</body>
+
+</html>

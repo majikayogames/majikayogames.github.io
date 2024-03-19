@@ -75,7 +75,7 @@
             <span style="position: absolute;">
                 Drag and drop or copy paste a video or image to draw over it.
                 <br />
-                F for fullscreen. Space to play/pause. M to mute/unmute.
+                F for fullscreen. Space to play/pause. M to mute/unmute. ',' and '.' to step back/forward 1/60th of a second
                 <br />
                 Backspace to clear. Ctrl-Z and Ctrl-Shift-Z or Ctrl Y to undo/redo.
                 <br />
@@ -266,7 +266,7 @@
                     videoPlayer.currentTime = tmp // this fixes some bug where it gets stuck. maybe chrome bug or something? no diea
                     videoPlayer.play();
 
-                    if ($("#clear_on_play")) {
+                    if ($("#clear_on_play").checked) {
                         ez.clear();
                         clearUndoRedoState();
                     }
@@ -279,6 +279,8 @@
             else if (e.key === "2") { curDrawColor = 2; }
             else if (e.key === "3") { curDrawColor = 3; }
             else if (e.key === "4") { curDrawColor = 4; }
+            else if(e.key === ",") { videoPlayer.currentTime -= 1/60 }
+            else if(e.key === ".") { videoPlayer.currentTime += 1/60 }
             else {
                 return;
             }
