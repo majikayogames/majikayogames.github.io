@@ -12,7 +12,6 @@
 
 <body>
     <script src="ezdraw.js"></script>
-    <script src="ezgui.js"></script>
     <script>
         let mainCanvas = ez.createCanvasAndAddToPage()
         let rotatedCanvas = ez.createCanvasAndAddToPage()
@@ -26,7 +25,7 @@
             "Show plane [S]": true,
             "Visualize position [V]": false,
             "Show rotated grid [G]": false,
-            "Show normal & perpendicular as axes [N]": false,
+            "Show transform.basis [B]": false,
             "Draw point as arrow instead [A]": false,
             "Draw many normals [M]": false
         }
@@ -45,15 +44,7 @@
                 data["Visualize position [V]"] = false
             }
         }
-        makeGui(data, dataCallbacks)
-        document.onkeypress = (e) => {
-            if (e.key.toLowerCase() === "s") { data["Show plane [S]"] = !data["Show plane [S]"] }
-            else if (e.key.toLowerCase() === "g") { data["Show rotated grid [G]"] = !data["Show rotated grid [G]"] }
-            else if (e.key.toLowerCase() === "v") { data["Visualize position [V]"] = !data["Visualize position [V]"] }
-            else if (e.key.toLowerCase() === "a") { data["Draw point as arrow instead [A]"] = !data["Draw point as arrow instead [A]"] }
-            else if (e.key.toLowerCase() === "n") { data["Show normal & perpendicular as axes [N]"] = !data["Show normal & perpendicular as axes [N]"] }
-            else if (e.key.toLowerCase() === "m") { data["Draw many normals [M]"] = !data["Draw many normals [M]"] }
-        }
+        ez.gui(data, dataCallbacks)
 
         function drawAxes(xAxisOpacity = 1, yAxisOpacity = 1) {
             ez.save()
@@ -145,7 +136,7 @@
                 let diff = cur.sub(last);
                 let perpendicular = cur.normalized().perpendicular();
                 let rot_add = diff.dot(perpendicular) / cur.length();
-                rotatedAng += rot_add
+                rotatedAng -= rot_add
             }
             //console.log(ez.getMousePosWorld())
         })
@@ -184,34 +175,28 @@
             ez.ctx.globalAlpha = ez.smoothVar("showPlane", data["Show plane [S]"] ? 1 : 0, 250)
             ez.camera = ez.camera.rotated(vec3(0, 0, 1), rotatedAng)
             ez.line([-1.5, 0], [1.5, 0]).stroke("grey", { lineWidth: 4 });
-            if (data["Draw many normals [M]"]) {
-                for(let i = 0; i < 10; i++) {
-                    const x = -1.4 + (i/10)*3
-                    ez.arrow(vec2(x,0), vec2(x, 0).add(vec2(Math.sin(i)*0.2, 1).normalized()), 5).fillAndStroke("black", "black")
-                }
+
+            // Draw point/arrow
+            ez.arrow(vec2(0, 0), vec2(0, 1), 10).fillAndStroke("black", "black", { lineWidth: 2, lineJoin: "round" })
+            if (data["Draw point as arrow instead [A]"]) {
+                ez.arrow(vec2(0, 0), pt, 5).fillAndStroke("black", "black")
             }
             else {
-                ez.arrow(vec2(0, 0), vec2(0, 1), 10).fillAndStroke("black", "black", { lineWidth: 2, lineJoin: "round" })
-                if (data["Draw point as arrow instead [A]"]) {
-                    ez.arrow(vec2(0, 0), pt, 5).fillAndStroke("black", "black")
-                }
-                else {
-                    ez.circle(pt, 5).fillAndStroke("black", "lightblue");
-                }
+                ez.circle(pt, 0.06).fillAndStroke("black", "lightblue");
             }
 
 
             ez.save()
-            ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords");
+            ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords");
             ez.arrow(vec2(0, 0), vec2(0, 1), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
             ez.arrow(vec2(0, 0), vec2(1, 0), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
             ez.restore()
 
             ez.restore()
 
-            ez.ctx.globalAlpha = ez.smoothVar("showNormalCoords", data["Show normal & perpendicular as axes [N]"] ? 1 : 0, 250);
-            ez.text("Normal: (" + normalMainGrid.xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
-            ez.text("Normal rotated 90°: (" + normalMainGrid.multiply([-1, 1]).yx.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
+            ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords", data["Show transform.basis [B]"] ? 1 : 0, 250);
+            ez.text("transform.basis.y: (" + normalMainGrid.xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
+            ez.text("transform.basis.x: (" + normalMainGrid.multiply([-1, 1]).yx.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
             //ez.text("Position: ("+getPtPosMainGrid().xy.map(n => n.toFixed(1))+")", getPtPosMainGrid().add([0,0.5]), {fontStyle: "bold italic"}).fill()

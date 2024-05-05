@@ -14,9 +14,10 @@
     <script src="ezdraw.js"></script>
     <script>
         let mainCanvas = ez.createCanvasAndAddToPage()
+        ez.centerOrigin = true
 
         function draw() {
-            ez.centerCamera()
+            //ez.centerCamera()
             ez.clear()
             ez.grid(100,50).stroke(0xbbbbbb)
             let interp = (Date.now() % 10000) / 10000 * (Math.PI*2);

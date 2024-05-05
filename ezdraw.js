@@ -117,6 +117,7 @@ ez.keyDownCallbacks = {};
 ez.keyUpCallbacks = {};
 ez.mouseMoveCallbacks = [];
 ez.mouseDownCallbacks = [];
+ez.mouseUpCallbacks = [];
 ez.mouseDragCallbacks = [];
 ez.mouseDragEndCallbacks = [];
 ez.mouseLeaveCallbacks = [];
@@ -194,12 +195,20 @@ ez.isMouseDown = function(button="left") {
     return ez.mouseDown[button];
 };
 
+ez.isMouseUp = function(button="left") {
+    return !ez.isMouseDown(button);
+};
+
 ez.onMouseMove = function(callback) {
     ez.mouseMoveCallbacks.push(callback);
 };
 
 ez.onMouseDown = function(callback) {
     ez.mouseDownCallbacks.push(callback);
+};
+
+ez.onMouseUp = function(callback) {
+    ez.mouseUpCallbacks.push(callback);
 };
 
 ez.onMouseDrag = function(callback) {
@@ -263,6 +272,8 @@ ez.addInputEventListeners = function(canvas) {
         if(event.button === 0) ez.mouseDown.left = false;
         if(event.button === 1) ez.mouseDown.middle = false;
         if(event.button === 2) ez.mouseDown.right = false;
+
+        ez.mouseUpCallbacks.forEach(cb => cb(event));
         if (ez.isDragging) {
             ez.isDragging = false;
             ez.mouseDragEndCallbacks.forEach(cb => cb(event));
@@ -272,9 +283,13 @@ ez.addInputEventListeners = function(canvas) {
 
     canvas.addEventListener('pointerleave', function(event) {
         ez.isDragging = false;
-        ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
+        if(ez.isMouseDown("left") || ez.isMouseDown("middle") || ez.isMouseDown("right")) {
+            ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
+            ez.mouseUpCallbacks.forEach(cb => cb(event))
+        }
+        else ez.mouseDown.left = ez.mouseDown.middle = ez.mouseDown.right = false;
         ez.curCanvasMouseOver = null;
-        ez.mouseDragEndCallbacks.forEach(cb => cb(event));
+        if(ez.isDragging) ez.mouseDragEndCallbacks.forEach(cb => cb(event));
         ez.mouseLeaveCallbacks.forEach(cb => cb(event));
     });
 
@@ -343,12 +358,113 @@ ez.circle = function ezCircle(pos, radius) {
 ez.circle.prototype.drawPath = function() {
     // Apply the transformation to the circle's position
     const transformedCenter = ez.worldToScreen(new vec3(0,0,0), this.transform);
+    const transformedRad = ez.worldToScreen(new vec3(0,this.radius,0), this.transform);
 
     // Start drawing the circle path
     ez.ctx.beginPath();
-    ez.ctx.arc(transformedCenter.x, transformedCenter.y, this.radius, 0, 2 * Math.PI);
+    ez.ctx.arc(transformedCenter.x, transformedCenter.y, transformedCenter.sub(transformedRad).length(), 0, 2 * Math.PI);
     ez.ctx.closePath();
 };
+
+// capsule
+
+ez.capsule = function ezCapsule(pos, rot, length, radius1, radius2) {
+    if (!(this instanceof ezCapsule)) return new ezCapsule(pos, rot, length, radius1, radius2);
+    this.pos = vec2(pos); // Center position between the two semicircles
+    this.length = length || 0;
+    this.radius1 = radius1 || 1;
+    this.radius2 = radius2 || 1;
+    this.rot = rot || 0;
+
+    // Prepare the transformation matrix for the capsule
+    this.transform = mat3x4().rotated(vec3(0,0,1), rot || 0);
+    this.transform.setOrigin(this.pos);
+};
+
+ez.capsule.prototype.drawPath = function() {
+    // Calculate the ends of the length line (centers of the semicircles)
+    let center1 = new vec3(-this.length / 2, 0, 0);
+    let center2 = new vec3(this.length / 2, 0, 0);
+
+    // Apply transformations to the center points
+    center1 = ez.worldToScreen(center1, this.transform);
+    center2 = ez.worldToScreen(center2, this.transform);
+
+    // Transform a point positioned at radius distance along the y-axis from center1 and center2 to calculate actual radii
+    let radiusPoint1 = ez.worldToScreen(new vec3(-this.length / 2, this.radius1, 0), this.transform);
+    let radiusPoint2 = ez.worldToScreen(new vec3(this.length / 2, this.radius2, 0), this.transform);
+
+    // Calculate transformed radii
+    let transformedRadius1 = radiusPoint1.sub(center1).length();
+    let transformedRadius2 = radiusPoint2.sub(center2).length();
+
+    // Draw the first semicircle from top to bottom
+    ez.ctx.beginPath();
+    ez.ctx.arc(center1.x, center1.y, transformedRadius1, Math.PI / 2 - this.rot, Math.PI * 1.5 - this.rot);
+
+    // Draw the second semicircle from bottom to top
+    ez.ctx.arc(center2.x, center2.y, transformedRadius2, Math.PI * 1.5 - this.rot, Math.PI / 2 - this.rot);
+
+    // Close the path to complete the capsule
+    ez.ctx.closePath();
+};
+
+
+
+// image
+// Image Manager
+ez.loadedImages = {};
+
+ez.image = function ezImage(url, pos, rot, scale) {
+	if (!(this instanceof ezImage)) return new ezImage(url, pos, rot, scale);
+	this.url = url;
+	this.pos = vec2(pos);
+	this.rot = rot || 0; // Rotation in radians
+	this.scale = scale || 1;
+
+	// Check if the image has already been loaded
+	if (!ez.loadedImages[url]) {
+		const img = new Image();
+		img.src = url;
+		img.onload = () => {
+			ez.loadedImages[url] = img;
+		};
+		img.onerror = () => {
+			console.error("Failed to load image at " + url);
+		};
+		this.img = img;
+	} else {
+		this.img = ez.loadedImages[url];
+	}
+
+	// Set up the transformation matrix
+	this.transform = mat3x4().rotated(vec3(0, 0, 1), this.rot);
+	this.transform.setOrigin(this.pos);
+};
+
+ez.image.prototype.draw = function() {
+	if (!this.img.complete) {
+		return; // Don't try to draw the image if it's not loaded
+	}
+
+	// Calculate the position on the canvas
+	let drawPos = ez.worldToScreen(this.pos, this.transform);
+
+	// Set the transformation context for drawing
+	ez.ctx.save();
+	ez.ctx.translate(drawPos.x, drawPos.y);
+	ez.ctx.rotate(this.rot);
+	ez.ctx.scale(this.scale, this.scale);
+
+	// Calculate the draw width and height based on the image's natural size
+	let drawWidth = this.img.naturalWidth * this.scale;
+	let drawHeight = this.img.naturalHeight * this.scale;
+
+	// Draw the image centered on its transformed position
+	ez.ctx.drawImage(this.img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+	ez.ctx.restore();
+};
+
 
 // grid
 
@@ -462,17 +578,20 @@ ez.arrow.prototype.drawPath = function() {
 
 // path
 
-ez.path = function ezPath(points) {
-    if (!(this instanceof ezPath)) return new ezPath(points);
+ez.path = function ezPath(points = [], closed = false, smoothed = true, transform = mat3x4()) {
+    if (!(this instanceof ezPath)) return new ezPath(points, closed, smoothed, transform);
     this.points = points.map(point => vec2(point)); // Ensure all points are vec2
+    this.closed = closed
+    this.smoothed = smoothed
+    this.transform = transform;
 };
 
-ez.path.prototype.stroke = function() {
+ez.path.prototype.drawPath = function() {
     if (this.points.length < 2) return; // Need at least two points to draw a path
 
     ez.ctx.beginPath();
     // Move to the first point
-    let start = ez.worldToScreen(vec3(this.points[0].x, this.points[0].y, 0));
+    let start = ez.worldToScreen(vec3(this.points[0].x, this.points[0].y, 0), this.transform);
     ez.ctx.moveTo(start.x, start.y);
 
     for (let i = 1; i < this.points.length - 2; i++) {
@@ -481,21 +600,34 @@ ez.path.prototype.stroke = function() {
         
         // Average the current point and the next to find the middle for a smoother transition
         let midPoint = cp1.add(cp2).scale(0.5);
-        let transformedMidPoint = ez.worldToScreen(vec3(midPoint.x, midPoint.y, 0));
-        let transformedCP1 = ez.worldToScreen(vec3(cp1.x, cp1.y, 0));
+        let transformedMidPoint = ez.worldToScreen(vec3(midPoint.x, midPoint.y, 0), this.transform);
+        let transformedCP1 = ez.worldToScreen(vec3(cp1.x, cp1.y, 0), this.transform);
 
         // Quadratic bezier curve to the midpoint, then to the next point
-        ez.ctx.quadraticCurveTo(transformedCP1.x, transformedCP1.y, transformedMidPoint.x, transformedMidPoint.y);
+        if (this.smoothed) {
+            ez.ctx.quadraticCurveTo(transformedCP1.x, transformedCP1.y, transformedMidPoint.x, transformedMidPoint.y);
+        }
+        else {
+            ez.ctx.lineTo(transformedCP1.x, transformedCP1.y)
+        }
     }
 
     // Draw the last two points
     let cpLast = this.points[this.points.length - 2];
     let end = this.points[this.points.length - 1];
-    let transformedCPLast = ez.worldToScreen(vec3(cpLast.x, cpLast.y, 0));
-    let transformedEnd = ez.worldToScreen(vec3(end.x, end.y, 0));
-    ez.ctx.quadraticCurveTo(transformedCPLast.x, transformedCPLast.y, transformedEnd.x, transformedEnd.y);
+    let transformedCPLast = ez.worldToScreen(vec3(cpLast.x, cpLast.y, 0), this.transform);
+    let transformedEnd = ez.worldToScreen(vec3(end.x, end.y, 0), this.transform);
+    if(this.smoothed) {
+        ez.ctx.quadraticCurveTo(transformedCPLast.x, transformedCPLast.y, transformedEnd.x, transformedEnd.y);
+    }
+    else {
+        ez.ctx.lineTo(transformedCPLast.x, transformedCPLast.y)
+    }
 
-    ez.ctx.stroke(); // Apply the stroke to the path
+
+    if(this.closed)
+        ez.ctx.closePath();
+    //ez.ctx.stroke(); // Apply the stroke to the path
 };
 
 // text
@@ -655,7 +787,7 @@ function vec2(...args) {
     this.y = y || 0;
 }
 vec2.prototype.add = function(other) { other = vec2(other); return vec2(this.x + other.x, this.y + other.y); }
-vec2.prototype.sub = function(other) { other = vec2(other); return vec2(this.x - other.x, this.y - other.y); }
+vec2.prototype.sub = vec2.prototype.subtract =function(other) { other = vec2(other); return vec2(this.x - other.x, this.y - other.y); }
 vec2.prototype.dot = function(other) { other = vec2(other); return this.x * other.x + this.y * other.y; }
 vec2.prototype.divide = vec2.prototype.divided = vec2.prototype.div = function(n) {
     if(typeof n === "number") { return vec2(this.x / n, this.y / n); }
@@ -678,6 +810,7 @@ vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.ro
 vec2.prototype.floor = vec2.prototype.floored = function() { return vec2(Math.floor(this.x), Math.floor(this.y)); };
 vec2.prototype.ceil = vec2.prototype.ceiled = function() { return vec2(Math.ceil(this.x), Math.ceil(this.y)); };
 vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)); };
+vec2.prototype.set = vec2.prototype.set_equal_to = function(other) { this.x = vec2(other).x; this.y = vec2(other).y };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
     let xb = vec2(Math.cos(angle), Math.sin(angle));
@@ -686,6 +819,7 @@ vec2.prototype.rotated = function(angle) {
     // Equivalent to the typical formula:
     //return vec2(Math.cos(angle) * this.x + Math.sin(angle) * this.y, Math.sin(angle) * this.x + Math.cos(angle) * this.y);
 }
+vec2.prototype.angle = function() { return Math.atan2(...this.normalized().yx) }
 vec2.prototype.perpendicular_dot = function(other) {
     other = vec2(other);
     return this.x * other.y + this.y * -other.x;
@@ -725,6 +859,7 @@ vec3.prototype.rounded = vec3.prototype.round = function() { return vec3(Math.ro
 vec3.prototype.floored = vec3.prototype.floor = function() { return vec3(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z)); };
 vec3.prototype.ceiled = vec3.prototype.ceil = function() { return vec3(Math.ceil(this.x), Math.ceil(this.y), Math.ceil(this.z)); };
 vec3.prototype.abs = function() { return vec3(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z)); };
+vec3.prototype.set = vec3.prototype.set_equal_to = function(other) { this.x = vec3(other).x; this.y = vec3(other).y; this.z = vec3(other).z };
 vec3.prototype.cross = function(other) {
     other = vec3(other);
     return vec3(
@@ -752,6 +887,7 @@ function vec4(...args) {
     if (!(this instanceof vec4)) return new vec4(x, y, z, w);
     this.x = x || 0; this.y = y || 0; this.z = z || 0; this.w = w || 0;
 }
+vec4.prototype.set = vec4.prototype.set_equal_to = function(other) { this.x = vec4(other).x; this.y = vec4(other).y; this.z = vec4(other).z; this.w = vec4(other).w };
 
 vec3.prototype.duplicate = function() { return vec4(this.x, this.y, this.z, this.w); }
 
@@ -1052,8 +1188,8 @@ mat3x4.prototype.multiply = function(otherMat) {
 
 mat3x4.prototype.rotated = function(axis, angle) {
     // Create a rotation matrix based on the Rodrigues' rotation formula
-    let cosTheta = Math.cos(angle);
-    let sinTheta = Math.sin(angle);
+    let cosTheta = Math.cos(-angle); // Made these negative to match p2.js convention... I assume p2 had it right and mine was backwards originally.
+    let sinTheta = Math.sin(-angle);
     let rotationMatrix = mat3(
         vec3(
             cosTheta + (1 - cosTheta) * axis.x * axis.x,
@@ -1249,7 +1385,10 @@ ez.smoothVar = function(key, newValue = undefined, duration = 1000) {
 }
 
 function tryVecToArray(vec) {
-    if (vec === undefined) return vec
+    if (vec === undefined) return [0,0,0]
+    if (typeof(vec[Symbol.iterator])==='function') {
+        return [...vec]
+    }
     let arr = [vec.x, vec.y, vec.z, vec.w].filter(e => e !== undefined)
     return arr.length > 0 ? arr : vec
 }
@@ -1327,10 +1466,6 @@ ez.smoothPoints = function(points, options = {}) {
     }
 
     return smoothedPoints;
-}
-
-ez.centerCamera = function() {
-    ez.camera.setOrigin(vec3(-ez.canvas.width/2, ez.canvas.height/2, 0))
 }
 
 ez.makeVecBarycentric = function(p, a, b, c) {
@@ -1480,7 +1615,6 @@ ez.parseColor = function(color) {
 
     // Try setting the color and filling a rectangle to sample the color
     try {
-        //ez._parseColorCanvasCtx.clearRect(0,0,1,1);
         ez._parseColorCanvasCtx.clearRect(0,0,1,1);
         ez._parseColorCanvasCtx.fillStyle = color;
         ez._parseColorCanvasCtx.fillRect(0, 0, 1, 1);
@@ -1488,6 +1622,11 @@ ez.parseColor = function(color) {
         
         // Convert the RGBA color from the canvas to a hex string
         var hexColor = "#" + ((1 << 24) + (imageData[0] << 16) + (imageData[1] << 8) + imageData[2]).toString(16).slice(1).toUpperCase();
+		// Check for alpha value and append if not 255 (fully opaque)
+		if (imageData[3] !== 255) {
+			var alphaHex = Math.round(imageData[3] / 255 * 255).toString(16).padStart(2, '0').toUpperCase();
+			hexColor += alphaHex;
+		}
         return hexColor;
     } catch (e) {
         // If there's an error (invalid color), return black
@@ -1513,6 +1652,373 @@ ez.parseColorAsRGBAObj = function(color) {
     // Return the RGB object
     return { r, g, b, a };
 }
+
+
+/////////
+// GUI //
+/////////
+
+ez._guiUpdateInputWithValue =function(path, value) {
+    const inputElement = document.querySelector(`[data-path='${path}']`);
+    if (inputElement) {
+        if (inputElement.type === "checkbox") {
+            inputElement.checked = value;
+        } else if (inputElement.tagName.toLowerCase() === "select") {
+            inputElement.value = value;
+        } else {
+            inputElement.value = value;
+        }
+    }
+}
+
+ez._guiTransformDataProperties = function(data, path, callbacks = {}, allDataPaths_out = []) {
+    Object.keys(data).forEach((key) => {
+        let internalValue = data[key];
+        const currentPath = [...path, key].join(".");
+
+        allDataPaths_out.push(currentPath);
+
+        if (Array.isArray(internalValue)) {
+            data[key] = internalValue[0]; // Set the data object to the first value of the array by default
+        }
+
+        if (typeof internalValue !== "object" || internalValue instanceof Function || Array.isArray(internalValue)) {
+            Object.defineProperty(data, key, {
+                get() {
+                    return internalValue;
+                },
+                set(newValue) {
+                    internalValue = newValue;
+                    ez._guiUpdateInputWithValue(currentPath, newValue);
+                    const catchallCallback = callbacks["*"];
+                    const specificCallback = callbacks[currentPath];
+                    if (specificCallback) {
+                        specificCallback(newValue, currentPath);
+                    }
+                    if (catchallCallback) {
+                        catchallCallback(newValue, currentPath);
+                    }
+                },
+                enumerable: true,
+                configurable: true,
+            });
+        } else if (typeof internalValue === "object" && !Array.isArray(internalValue) && internalValue !== null) {
+            ez._guiTransformDataProperties(internalValue, [...path, key], callbacks, allDataPaths_out); // Recursive call for nested objects
+        }
+    });
+}
+
+ez._guiGenerateForm = function(dataObject, path) {
+    const formContainer = document.createElement("div");
+
+    const setPathValue = (path, value) => {
+        let tempData = dataObject;
+        for (let i = 0; i < path.length - 1; i++) {
+            tempData = tempData[path[i]];
+        }
+        tempData[path[path.length - 1]] = value;
+    }
+
+    let nestedObjForRecur = dataObject;
+    for(let i = 0; i < path.length; i++) {
+        nestedObjForRecur = nestedObjForRecur[path[i]];
+    }
+
+    Object.entries(nestedObjForRecur).forEach(([key, value]) => {
+        const currentPath = [...path, key];
+
+        if (typeof value === "function") {
+            // Make functions buttons
+            const button = document.createElement("button");
+            button.classList.add("control");
+            button.textContent = key;
+            button.onclick = value;
+            formContainer.appendChild(button);
+        } else if (Array.isArray(value)) {
+            // Make arrays dropdowns
+            const label = document.createElement("label");
+            const labelText = document.createElement("span");
+            labelText.innerText = key;
+            labelText.title = key;
+            labelText.classList.add("text")
+            label.appendChild(labelText);
+
+            const select = document.createElement("select");
+            select.setAttribute("data-path", currentPath);
+            value.forEach((option) => {
+                const optionElement = document.createElement("option");
+                optionElement.value = option;
+                optionElement.textContent = option;
+                select.appendChild(optionElement);
+            });
+            select.value = value[0]; // Default to first array element
+            select.addEventListener("change", (e) => {
+                setPathValue(currentPath, select.options[select.selectedIndex].value);
+            });
+
+            const control = document.createElement("span");
+            control.classList.add("control");
+            control.appendChild(select);
+            label.appendChild(control);
+            formContainer.appendChild(label);
+        } else if (typeof value === "object" && !Array.isArray(value) && value !== null) {
+            // Make nested objects collapsible sections
+            const button = document.createElement("button");
+            button.className = "collapsible";
+            button.innerText = key;
+
+            const contentDiv = document.createElement("div");
+            contentDiv.className = "collapsible-content";
+            contentDiv.appendChild(ez._guiGenerateForm(dataObject, currentPath)); // Recursive call for nested objects
+            contentDiv.style.display = "none";
+
+            button.addEventListener("click", function () {
+                contentDiv.style.display = contentDiv.style.display === "none" ? "block" : "none";
+                if (contentDiv.style.display === "none") {
+                    button.classList.remove("expanded");
+                } else {
+                    button.classList.add("expanded");
+                }
+            });
+
+            formContainer.appendChild(button);
+            formContainer.appendChild(contentDiv);
+        } else {
+            // Make text, boolean, or numbers as text, checkbox, or number inputs
+            const label = document.createElement("label");
+            const labelText = document.createElement("span");
+            labelText.innerText = key;
+            labelText.title = key;
+            labelText.classList.add("text")
+            label.appendChild(labelText);
+
+            let inputType = "text";
+            if (typeof value === "boolean") {
+                inputType = "checkbox";
+            } else if (typeof value === "number") {
+                inputType = "number";
+            }
+
+            const input = document.createElement("input");
+            input.type = inputType;
+            input.setAttribute("data-path", currentPath.join("."));
+            input.name = currentPath.join(".");
+            input.value = inputType === "checkbox" ? "" : value;
+            input.checked = inputType === "checkbox" ? value : false;
+
+            input.addEventListener("input", (e) => {
+                const newValue = inputType === "checkbox" ? input.checked : input.value;
+                setPathValue(currentPath, inputType === "number" ? Number(newValue) : newValue);
+            });
+
+            const control = document.createElement("span");
+            control.classList.add("control");
+            control.appendChild(input);
+            label.appendChild(control);
+            formContainer.appendChild(label);
+        }
+    });
+
+    return formContainer;
+}
+
+ez._guiInjectStyles = function(palette) {
+    const styles = `
+        .ezgui-floating-window {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 400px;
+            max-width: 100%;
+            background-color: ${palette.tertiaryBackground};
+            color: ${palette.primaryText};
+            font: 11px 'Lucida Grande', sans-serif;
+        }
+
+        button.ezgui-close-controls, button.collapsible {
+            width: 100%;
+            background-color: ${palette.accentBackground};
+            color: ${palette.highlightText};
+            font-size: 11px;
+            border: none;
+            padding: 7px;
+            cursor: pointer;
+            position: relative;
+            border-radius: 0; /* Consistent border radius */
+        }
+        button.collapsible {
+            text-align: left;
+            border-bottom: 1px solid ${palette.secondaryBackground};
+            user-select: none;
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+        }
+        .collapsible-content {
+            border-left: 5px solid ${palette.accentBackground};
+        }
+
+        button.ezgui-close-controls:hover, button.collapsible:hover {
+            background-color: ${palette.secondaryBackground};
+        }
+
+        button.collapsible::before {
+            content: '';
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            background-image: url(${'data:image/svg+xml;base64,'+btoa("<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5' viewBox='0 0 5 5'><polygon points='2,0 5,2.5 2,5' fill='"+palette.highlightText+"'/></svg>")});
+            background-size: contain;
+            background-repeat: no-repeat;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        button.collapsible.expanded::before {
+            background-image: url(${'data:image/svg+xml;base64,'+btoa("<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5' viewBox='0 0 5 5'><polygon points='0,2 5,2 2.5,5' fill='"+palette.highlightText+"'/></svg>")});
+        }
+        
+        .ezgui-floating-window label {
+            display: block;
+            padding: 4px;
+            cursor: pointer;
+            border-bottom: 1px solid ${palette.secondaryBackground};
+            color: ${palette.highlightText};
+            overflow: hidden;
+            white-space: nowrap; /* Correct property for no wrapping */
+        }
+
+        .ezgui-floating-window label > .text, .ezgui-floating-window label > .control {
+            display: inline-block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ezgui-floating-window label > .text {
+            width: 40%;
+            border-radius: 0px;
+            border: 0px;
+            padding: 0 4px 0 5px;
+            user-select: none;
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+        }
+
+        .ezgui-floating-window label > .control {
+            text-align: left;
+            width: 60%;
+        }
+
+        .ezgui-floating-window button.control {
+            padding: 4px 4px 4px 9px;
+            text-align: left;
+            background-color: transparent;
+            color: ${palette.highlightText};
+            border: 0px;
+            width: 100%;
+        }
+        .ezgui-floating-window button.control:hover {
+            background-color: ${palette.secondaryBackground};
+            cursor: pointer;
+            color: ${palette.highlightText};
+            border: 0px;
+            width: 100%;
+        }
+
+        .ezgui-floating-window input {
+            background-color: ${palette.primaryBackground};
+            color: ${palette.primaryText};
+            border: 1px solid ${palette.secondaryBackground}; /* Slight border for definition */
+            padding: 2px 4px; /* Padding for better text visibility */
+            border-radius: 2px; /* Slight border radius */
+        }
+        .ezgui-floating-window input[type="text"], .ezgui-floating-window input[type="number"] {
+            outline: none;
+        }
+        .ezgui-floating-window select {
+            outline: none;
+        }
+    `;
+
+    const styleSheet = document.createElement("style");
+    styleSheet.type = "text/css";
+    styleSheet.innerText = styles;
+    document.head.appendChild(styleSheet);
+}
+
+ez.guiPalettes = {
+    default: {
+        primaryText: "#2FA1CC",
+        highlightText: "#FFF",
+        primaryBackground: "#303030",
+        secondaryBackground: "#3C3C3C",
+        tertiaryBackground: "#1A1A1A",
+        accentBackground: "#000",
+    },
+};
+
+ez.gui = function(data, callbacks, options) {
+    let allDataPaths = []
+    ez._guiTransformDataProperties(data, [], callbacks, allDataPaths); // Initialize data properties transformation with an empty base path. Adds callbacks/setters/getters for watching data.
+    const form = ez._guiGenerateForm(data, [], callbacks);
+    const floatingWindow = document.createElement("div");
+
+    const closeControlsButton = document.createElement("button");
+    closeControlsButton.innerText = "Close Controls";
+    closeControlsButton.title = "Alt-Click to hide entire window, H to bring it back.";
+    closeControlsButton.classList.add("ezgui-close-controls");
+
+    floatingWindow.appendChild(form);
+    floatingWindow.appendChild(closeControlsButton);
+    floatingWindow.classList.add("ezgui-floating-window");
+
+    closeControlsButton.onclick = (e) => {
+        if(e.altKey) {
+            floatingWindow.style.display = "none";
+            let bringBackListener = {};
+            bringBackListener.listener = document.addEventListener("keypress", (e) => {
+                if(e.key === "h" || e.key === "H") {
+                    floatingWindow.style.display = "";
+                    document.removeEventListener("keypress", bringBackListener.listener);
+                }
+            })
+        }
+        else {
+            form.style.display = form.style.display === "none" ? "" : "none";
+            closeControlsButton.innerText = form.style.display === "none" ? "Open Controls" : "Close Controls";
+        }
+    }
+
+    let container = window?.ez?.canvas || options?.container || document.body;
+    container.appendChild(floatingWindow);
+
+    if (!options?.noStyling) {
+        ez._guiInjectStyles(ez.guiPalettes[options?.palette || "default"]); // Inject the generated styles
+    }
+
+    const endsInKeyRegex = /.*\[(.)\]$/; // ends in [W] [A] [S] [D] etc
+    let dataPathsEndingInKey = allDataPaths.filter(path => endsInKeyRegex.test(path))
+    let keyPathMap = {}
+    dataPathsEndingInKey.forEach(path => {keyPathMap[path.slice(-2)[0].toLowerCase()] = path})
+    document.addEventListener("keypress", (e) => {
+        const textInputTypes = ["text", "number", "password", "email", "url", "search", "tel", "date", "time", "datetime-local", "month", "week"]
+        if ((document.activeElement.tagName === "INPUT" &&  textInputTypes.indexOf(document.activeElement.type.toLowerCase()) !== -1) || document.activeElement.tagName === "TEXTAREA") {
+            return; // Don't trigger shortcut keys if typing in an input elsewhere
+        }
+        let keyToPath = keyPathMap[e.key.toLowerCase()];
+        if (keyToPath) {
+            const inputElement = document.querySelector(`[data-path='${keyToPath}']`);
+            if (inputElement) {
+                inputElement.click();
+            }
+        }
+    });
+
+    return floatingWindow;
+}
+
+/////////////////////////////////////////////
+// CALL THESE LAST - SETUP SHORTHAND STUFF //
+/////////////////////////////////////////////
 
 // Shorthand hacks for each draw type. fillAndStroke and allow passing in color for each.
 Object.entries(ez).forEach(([key,value]) => {
