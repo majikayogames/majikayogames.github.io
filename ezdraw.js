@@ -788,23 +788,21 @@ function vec2(...args) {
     if ( !(this instanceof vec2) ) return new vec2(x, y);
     this.x = x || 0;
     this.y = y || 0;
+    this[Symbol.iterator] = function* () {
+        yield this.x;
+        yield this.y;
+    };
 }
-vec2.prototype.add = function(other) { other = vec2(other); return vec2(this.x + other.x, this.y + other.y); }
-vec2.prototype.sub = vec2.prototype.subtract =function(other) { other = vec2(other); return vec2(this.x - other.x, this.y - other.y); }
-vec2.prototype.dot = function(other) { other = vec2(other); return this.x * other.x + this.y * other.y; }
-vec2.prototype.divide = vec2.prototype.divided = vec2.prototype.div = function(n) {
-    if(typeof n === "number") { return vec2(this.x / n, this.y / n); }
-    else {
-        n = vec2(n);
-        return vec2(this.x / n.x, this.y / n.y);
-    }
+vec2.prototype.add = function(...args) { let other = vec2(args); return vec2(this.x + other.x, this.y + other.y); }
+vec2.prototype.sub = vec2.prototype.subtract = function(...args) { let other = vec2(args); return vec2(this.x - other.x, this.y - other.y); }
+vec2.prototype.dot = function(...args) { let other = vec2(args); return this.x * other.x + this.y * other.y; }
+vec2.prototype.divide = vec2.prototype.divided = vec2.prototype.div = function(...args) {
+    let n = vec2(args)
+    return vec2(this.x / n.x, this.y / n.y);
 }
-vec2.prototype.scale = vec2.prototype.scaled = vec2.prototype.multiply = function(n) {
-    if(typeof n === "number") { return vec2(this.x * n, this.y * n); }
-    else {
-        n = vec2(n);
-        return vec2(this.x * n.x, this.y * n.y);
-    }
+vec2.prototype.scale = vec2.prototype.scaled = vec2.prototype.multiply = function(...args) {
+    let n = vec2(args);
+    return vec2(this.x * n.x, this.y * n.y);
 }
 vec2.prototype.magnitude = vec2.prototype.mag = vec2.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y); }
 vec2.prototype.duplicate = vec2.prototype.clone = function() { return vec2(this.x, this.y); }
@@ -840,24 +838,23 @@ function vec3(...args) {
     if(x !== undefined && y === undefined && z === undefined) z = y = x
     if (!(this instanceof vec3)) return new vec3(x, y, z);
     this.x = x || 0; this.y = y || 0; this.z = z || 0;
+    this[Symbol.iterator] = function* () {
+        yield this.x;
+        yield this.y;
+        yield this.z;
+    };
 }
 
-vec3.prototype.add = function(other) { other = vec3(other); return vec3(this.x + other.x, this.y + other.y, this.z + other.z); }
-vec3.prototype.sub = function(other) { other = vec3(other); return vec3(this.x - other.x, this.y - other.y, this.z - other.z); }
-vec3.prototype.dot = function(other) { other = vec3(other); return this.x * other.x + this.y * other.y + this.z * other.z; }
-vec3.prototype.divide = vec3.prototype.divided = vec3.prototype.div = function(n) {
-    if(typeof n === "number") { return vec3(this.x / n, this.y / n, this.z / n); }
-    else {
-        n = vec3(n);
-        return vec3(this.x / n.x, this.y / n.y, this.z / n.z);
-    }
+vec3.prototype.add = function(...other) { other = vec3(other); return vec3(this.x + other.x, this.y + other.y, this.z + other.z); }
+vec3.prototype.sub = function(...other) { other = vec3(other); return vec3(this.x - other.x, this.y - other.y, this.z - other.z); }
+vec3.prototype.dot = function(...other) { other = vec3(other); return this.x * other.x + this.y * other.y + this.z * other.z; }
+vec3.prototype.divide = vec3.prototype.divided = vec3.prototype.div = function(...n) {
+    n = vec3(n);
+    return vec3(this.x / n.x, this.y / n.y, this.z / n.z);
 }
-vec3.prototype.scale = vec3.prototype.scaled = vec3.prototype.multiply = function(n) {
-    if(typeof n === "number") { return vec3(this.x * n, this.y * n, this.z * n); }
-    else {
-        n = vec3(n);
-        return vec3(this.x * n.x, this.y * n.y, this.z * n.z);
-    }
+vec3.prototype.scale = vec3.prototype.scaled = vec3.prototype.multiply = function(...n) {
+    n = vec3(n);
+    return vec3(this.x * n.x, this.y * n.y, this.z * n.z);
 }
 vec3.prototype.magnitude = vec3.prototype.mag = vec3.prototype.length = function() { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
 vec3.prototype.duplicate = vec3.prototype.clone = function() { return vec3(this.x, this.y, this.z); }
@@ -866,8 +863,8 @@ vec3.prototype.rounded = vec3.prototype.round = function() { return vec3(Math.ro
 vec3.prototype.floored = vec3.prototype.floor = function() { return vec3(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z)); };
 vec3.prototype.ceiled = vec3.prototype.ceil = function() { return vec3(Math.ceil(this.x), Math.ceil(this.y), Math.ceil(this.z)); };
 vec3.prototype.abs = function() { return vec3(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z)); };
-vec3.prototype.set = vec3.prototype.set_equal_to = function(other) { this.x = vec3(other).x; this.y = vec3(other).y; this.z = vec3(other).z };
-vec3.prototype.cross = function(other) {
+vec3.prototype.set = vec3.prototype.set_equal_to = function(...other) { this.x = vec3(other).x; this.y = vec3(other).y; this.z = vec3(other).z };
+vec3.prototype.cross = function(...other) {
     other = vec3(other);
     return vec3(
         this.y * other.z - this.z * other.y,
@@ -894,6 +891,12 @@ function vec4(...args) {
     if(x !== undefined && y === undefined && z === undefined && w === undefined) w = z = y = x
     if (!(this instanceof vec4)) return new vec4(x, y, z, w);
     this.x = x || 0; this.y = y || 0; this.z = z || 0; this.w = w || 0;
+    this[Symbol.iterator] = function* () {
+        yield this.x;
+        yield this.y;
+        yield this.z;
+        yield this.w;
+    };
 }
 vec4.prototype.set = vec4.prototype.set_equal_to = function(other) { this.x = vec4(other).x; this.y = vec4(other).y; this.z = vec4(other).z; this.w = vec4(other).w };
 
@@ -1395,7 +1398,11 @@ ez.smoothVar = function(key, newValue = undefined, duration = 1000) {
 function tryVecToArray(vec) {
     if (vec === undefined) return [0,0,0]
     if (typeof(vec[Symbol.iterator])==='function') {
-        return [...vec]
+        return [...vec].map(v => {
+            if (typeof(v[Symbol.iterator])==='function') {
+                return [...v] // Also unwrap nested vec2s... Do we want this? I think so but I forget my reasoning here... Allows for more flexible argument passing.
+            } else return v
+        }).flat(Infinity)
     }
     let arr = [vec.x, vec.y, vec.z, vec.w].filter(e => e !== undefined)
     return arr.length > 0 ? arr : vec

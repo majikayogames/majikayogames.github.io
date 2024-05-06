@@ -26,6 +26,7 @@
             "Visualize position [V]": false,
             "Show rotated grid [G]": false,
             "Show transform.basis [B]": false,
+            "Show point position [P]": false,
             "X Scale": 1,
             "Y Scale": 1,
         }
@@ -188,6 +189,10 @@
             ez.arrow(vec2(0, 0), vec2(0, 1).scaled(transformScale), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
             ez.arrow(vec2(0, 0), vec2(1, 0).scaled(transformScale), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
             ez.restore()
+
+            if (data["Show point position [P]"]) {
+                ez.text("Position: (" + getPtPosMainGrid(transformScale).xy.map(n => n.toFixed(1)) + ")", pt.scaled(transformScale).add(vec2(0,.25).rotated(-rotatedAng)), { fontStyle: "bold", textAlign: "center" }).fill("black")
+            }
 
             ez.restore()
 
