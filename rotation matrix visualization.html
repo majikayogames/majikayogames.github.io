@@ -192,8 +192,8 @@
             ez.restore()
 
             ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords", data["Show transform.basis [B]"] ? 1 : 0, 250);
-            ez.text("transform.basis.x: (" + normalMainGrid.scaled(transformScale).rotated(deg_to_rad(90)).xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
-            ez.text("transform.basis.y: (" + normalMainGrid.scaled(transformScale).xy.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
+            ez.text("transform.basis.x: (" + normalMainGrid.scaled(transformScale.x).rotated(deg_to_rad(-90)).xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
+            ez.text("transform.basis.y: (" + normalMainGrid.scaled(transformScale.y).xy.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
 

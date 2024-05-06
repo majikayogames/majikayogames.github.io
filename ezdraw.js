@@ -816,11 +816,14 @@ vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)
 vec2.prototype.set = vec2.prototype.set_equal_to = function(other) { this.x = vec2(other).x; this.y = vec2(other).y };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
-    //let xb = vec2(Math.cos(angle), Math.sin(angle));
-    //let yb = vec2(Math.sin(angle), Math.cos(angle));
-    ///return xb.scale(this.x).add(yb.scale(this.y));
+    let xb = vec2(Math.cos(angle), Math.sin(angle));
+    let yb = vec2(-Math.sin(angle), Math.cos(angle));
+    return xb.scale(this.x).add(yb.scale(this.y));
     // Equivalent to the typical formula:
-    return vec2(Math.cos(angle) * this.x + Math.sin(angle) * this.y, Math.sin(angle) * this.x + Math.cos(angle) * this.y);
+    //return vec2(
+    //    Math.cos(angle) * this.x - Math.sin(angle) * this.y,
+    //    Math.sin(angle) * this.x + Math.cos(angle) * this.y
+    //);
 }
 vec2.prototype.angle = function() { return Math.atan2(...this.normalized().yx) }
 vec2.prototype.perpendicular_dot = function(other) {
