@@ -470,20 +470,21 @@ ez.image.prototype.draw = function() {
 
 ez.grid = function ezGrid(cellSize, numCells) {
     if (!(this instanceof ezGrid)) return new ezGrid(cellSize, numCells);
-    this.cellSize = cellSize || 10;
-    this.numCells = numCells || 10;
+    this.cellSize = vec2(cellSize || 10);
+    this.numCells = vec2(numCells || 10);
 };
 
 ez.grid.prototype.stroke = function() {
     ez.ctx.beginPath();
     
-    const halfNumCells = Math.floor(this.numCells / 2);
-    const gridSize = this.cellSize * this.numCells;
+    const halfNumCells = this.numCells.scaled(0.5).floored();
+    const gridSize = this.cellSize.multiply(this.numCells);
 
-    for (let i = -halfNumCells; i <= halfNumCells; i++) {
-        const pos = i * this.cellSize;
-        const startPoint = new vec3(pos, -gridSize / 2, 0);
-        const endPoint = new vec3(pos, gridSize / 2, 0);
+    // Vertical lines
+    for (let i = -halfNumCells.x; i <= halfNumCells.x; i++) {
+        const pos = i * this.cellSize.x;
+        const startPoint = new vec3(pos, -gridSize.y / 2, 0);
+        const endPoint = new vec3(pos, gridSize.y / 2, 0);
 
         const transformedStartPoint = ez.worldToScreen(startPoint);
         const transformedEndPoint = ez.worldToScreen(endPoint);
@@ -492,10 +493,11 @@ ez.grid.prototype.stroke = function() {
         ez.ctx.lineTo(transformedEndPoint.x, transformedEndPoint.y);
     }
 
-    for (let i = -halfNumCells; i <= halfNumCells; i++) {
-        const pos = i * this.cellSize;
-        const startPoint = new vec3(-gridSize / 2, pos, 0);
-        const endPoint = new vec3(gridSize / 2, pos, 0);
+    // Horizontal lines
+    for (let i = -halfNumCells.y; i <= halfNumCells.y; i++) {
+        const pos = i * this.cellSize.y;
+        const startPoint = new vec3(-gridSize.x / 2, pos, 0);
+        const endPoint = new vec3(gridSize.x / 2, pos, 0);
 
         const transformedStartPoint = ez.worldToScreen(startPoint);
         const transformedEndPoint = ez.worldToScreen(endPoint);
@@ -782,6 +784,7 @@ ez.quad.prototype.stroke = function(color) {
 
 function vec2(...args) {
     let [x, y] = args.map(tryVecToArray).flat(Infinity)
+    if(x !== undefined && y === undefined) y = x
     if ( !(this instanceof vec2) ) return new vec2(x, y);
     this.x = x || 0;
     this.y = y || 0;
@@ -813,11 +816,11 @@ vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)
 vec2.prototype.set = vec2.prototype.set_equal_to = function(other) { this.x = vec2(other).x; this.y = vec2(other).y };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
-    let xb = vec2(Math.cos(angle), Math.sin(angle));
-    let yb = vec2(Math.sin(angle), Math.cos(angle));
-    return xb.scale(this.x).add(yb.scale(this.y));
+    //let xb = vec2(Math.cos(angle), Math.sin(angle));
+    //let yb = vec2(Math.sin(angle), Math.cos(angle));
+    ///return xb.scale(this.x).add(yb.scale(this.y));
     // Equivalent to the typical formula:
-    //return vec2(Math.cos(angle) * this.x + Math.sin(angle) * this.y, Math.sin(angle) * this.x + Math.cos(angle) * this.y);
+    return vec2(Math.cos(angle) * this.x + Math.sin(angle) * this.y, Math.sin(angle) * this.x + Math.cos(angle) * this.y);
 }
 vec2.prototype.angle = function() { return Math.atan2(...this.normalized().yx) }
 vec2.prototype.perpendicular_dot = function(other) {
@@ -831,6 +834,7 @@ vec2.prototype.perpendicular = function() {
 
 function vec3(...args) {
     let [x, y, z] = args.map(tryVecToArray).flat(Infinity)
+    if(x !== undefined && y === undefined && z === undefined) z = y = x
     if (!(this instanceof vec3)) return new vec3(x, y, z);
     this.x = x || 0; this.y = y || 0; this.z = z || 0;
 }
@@ -884,6 +888,7 @@ vec3.prototype.rotated = function(axis, angle) {
 
 function vec4(...args) {
     let [x, y, z, w] = args.map(tryVecToArray).flat(Infinity)
+    if(x !== undefined && y === undefined && z === undefined && w === undefined) w = z = y = x
     if (!(this instanceof vec4)) return new vec4(x, y, z, w);
     this.x = x || 0; this.y = y || 0; this.z = z || 0; this.w = w || 0;
 }
@@ -1707,6 +1712,35 @@ ez._guiTransformDataProperties = function(data, path, callbacks = {}, allDataPat
         }
     });
 }
+ez._addMouseScrubListenersToNumberInput = function(numberInput, newValCallback) {
+    let startX;
+    let startValue;
+
+    const onMouseDown = (e) => {
+        // Ensure interaction starts only with the left mouse button
+        if (e.button !== 0) return;
+        startX = e.pageX;
+        startValue = parseFloat(numberInput.value);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        //e.preventDefault(); // Prevent other interactions like text selection
+    };
+
+    const onMouseMove = (e) => {
+        const dx = e.pageX - startX;
+        const sensitivity = 0.01; // Adjust sensitivity as needed
+        let newValue = startValue + dx * sensitivity;
+        numberInput.value = parseFloat(newValue.toFixed(2)); // Update the input display
+        newValCallback(parseFloat(newValue.toFixed(2)));  // Call the callback with the new value
+    };
+
+    const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    numberInput.addEventListener('mousedown', onMouseDown);
+}
 
 ez._guiGenerateForm = function(dataObject, path) {
     const formContainer = document.createElement("div");
@@ -1806,7 +1840,11 @@ ez._guiGenerateForm = function(dataObject, path) {
             input.value = inputType === "checkbox" ? "" : value;
             input.checked = inputType === "checkbox" ? value : false;
 
-            input.addEventListener("input", (e) => {
+            if(input.type === "number") {
+                ez._addMouseScrubListenersToNumberInput(input, (newValue) => setPathValue(currentPath, Number(newValue)));
+            }
+
+            input.addEventListener("change", (e) => {
                 const newValue = inputType === "checkbox" ? input.checked : input.value;
                 setPathValue(currentPath, inputType === "number" ? Number(newValue) : newValue);
             });
@@ -2000,10 +2038,17 @@ ez.gui = function(data, callbacks, options) {
     let keyPathMap = {}
     dataPathsEndingInKey.forEach(path => {keyPathMap[path.slice(-2)[0].toLowerCase()] = path})
     document.addEventListener("keypress", (e) => {
-        const textInputTypes = ["text", "number", "password", "email", "url", "search", "tel", "date", "time", "datetime-local", "month", "week"]
+        const textInputTypes = ["text", "password", "email", "url", "search", "tel", "date", "time", "datetime-local", "month", "week"]
         if ((document.activeElement.tagName === "INPUT" &&  textInputTypes.indexOf(document.activeElement.type.toLowerCase()) !== -1) || document.activeElement.tagName === "TEXTAREA") {
             return; // Don't trigger shortcut keys if typing in an input elsewhere
         }
+
+        // Check if the active element is a number input and the key pressed is a number or decimal point
+        if (document.activeElement.tagName === "INPUT" && document.activeElement.type === "number" &&
+            ((e.key >= '0' && e.key <= '9') || e.key === '.' || e.key === ',')) {
+            return; // Don't trigger shortcut keys if typing a number or decimal into a number input
+        }
+
         let keyToPath = keyPathMap[e.key.toLowerCase()];
         if (keyToPath) {
             const inputElement = document.querySelector(`[data-path='${keyToPath}']`);

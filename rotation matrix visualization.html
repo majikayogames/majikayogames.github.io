@@ -26,15 +26,12 @@
             "Visualize position [V]": false,
             "Show rotated grid [G]": false,
             "Show transform.basis [B]": false,
-            "Draw point as arrow instead [A]": false,
-            "Draw many normals [M]": false
+            "X Scale": 1,
+            "Y Scale": 1,
         }
         let animatingVisualization = false
         let visualizePosAnimStartTime = Date.now()
         const dataCallbacks = {
-            // "*": (v, p) => {
-            //     console.log(`${v} set at ${p}`);
-            // },
             "Visualize position [V]": (value) => {
                 animatingVisualization = value
                 visualizePosAnimStartTime = Date.now()
@@ -57,12 +54,12 @@
             ez.restore()
         }
 
-        function drawAnimatedGrid(point, timeMs = 0) {
+        function drawAnimatedGrid(point, timeMs = 0, cellSize = vec2(1,1)) {
             point = vec2(point)
             ez.save()
 
             ez.ctx.lineWidth = 1
-            ez.grid(1, 50).stroke(0xbbbbbb)
+            ez.grid(cellSize, 50).stroke(0xbbbbbb)
 
             ez.ctx.lineWidth = 1.5
             ez.line(vec2(0, -1000), vec2(0, 1000)).stroke("grey")
@@ -84,7 +81,7 @@
                     let myTime = Math.min(timePerThis, timeMs - timeUsed);
                     let interp = lerpClamp(0, 1, (myTime / timePerThis));
                     let interpX = interp * moved;
-                    ez.arrow(curPos, curPos.add([interpX, 0]), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
+                    ez.arrow(curPos.scaled(cellSize), curPos.add([interpX, 0]).scaled(cellSize), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
                     curPos.x += moved
                 }
                 else if(diff.abs().y > 0.00001) {
@@ -93,7 +90,7 @@
                     let myTime = Math.min(timePerThis, timeMs - timeUsed);
                     let interp = lerpClamp(0, 1, (myTime / timePerThis));
                     let interpY = interp * moved;
-                    ez.arrow(curPos, curPos.add([0, interpY]), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
+                    ez.arrow(curPos.scaled(cellSize), curPos.add([0, interpY]).scaled(cellSize), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round", globalAlpha: interp * ez.ctx.globalAlpha })
                     curPos.y += moved
                 }
                 i++;
@@ -107,20 +104,25 @@
         let rotatedAng = 0
 
         ez.onMouseDown(() => {
-            movingPoint = ez.getMousePosWorld().sub(getPtPosMainGrid()).length() < 0.2;
+            let transformScale = vec2(data["X Scale"], data["Y Scale"])
+            movingPoint = ez.getMousePosWorld().sub(getPtPosMainGrid(transformScale)).length() < 0.2;
         })
         ez.onMouseDrag((event, delta) => {
             let showRotatedGrid = ez.smoothVar("showRotatedGrid");
             if (movingPoint) {
                 data["Visualize position [V]"] = false
                 let mousePos = ez.getMousePosWorld()
+                mousePos = mousePos
+
                 if (!showRotatedGrid) {
                     if (mousePos.rounded().sub(mousePos).abs().length() < 0.06) {
                         mousePos = mousePos.rounded();
                     }
                 }
+
+                let transformScale = vec2(data["X Scale"], data["Y Scale"])
                 let rotMat = mat3x4().rotated(vec3(0, 0, -1), rotatedAng)
-                pt = vec2(rotMat.multiplyVec3(vec3(mousePos, 0)).xy)
+                pt = vec2(rotMat.multiplyVec3(vec3(mousePos, 0)).xy).divided(transformScale)
                 if (showRotatedGrid) {
                     if (pt.rounded().sub(pt).abs().length() < 0.06) {
                         pt = pt.rounded();
@@ -143,8 +145,8 @@
 
         let pt = vec2(2, 1)
 
-        function getPtPosMainGrid() {
-            return mat3x4().rotated(vec3(0, 0, -1), -rotatedAng).multiplyVec3(vec3(pt, 0))
+        function getPtPosMainGrid(transformScale) {
+            return mat3x4().rotated(vec3(0, 0, -1), -rotatedAng).multiplyVec3(vec3(pt.scaled(transformScale), 0))
         }
 
         function draw() {
@@ -152,11 +154,12 @@
 
             const normalMainGrid = vec2(mat3x4().rotated(vec3(0, 0, 1), rotatedAng).multiplyVec3(vec3(0, 1, 0)));
 
-            //ez.camera.setOrigin(vec3(-1,2,0));
+            var transformScale = vec2(data["X Scale"], data["Y Scale"])
+
             // Draw main grid
             ez.clear()
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid) * 0.9 + 0.1;
-            drawAnimatedGrid(getPtPosMainGrid(), animatingVisualization && !showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0)
+            drawAnimatedGrid(getPtPosMainGrid(transformScale), animatingVisualization && !showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0)
             drawAxes()
 
             // Draw rotated grid
@@ -165,7 +168,7 @@
             ez.clear()
             ez.camera = ez.camera.rotated(vec3(0, 0, 1), rotatedAng)
             ez.ctx.globalAlpha = showRotatedGrid
-            drawAnimatedGrid(pt, animatingVisualization && showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0, 0, 0)
+            drawAnimatedGrid(pt, animatingVisualization && showRotatedGrid ? Date.now() - visualizePosAnimStartTime : 0, transformScale)
             ez.restore()
 
             // Draw plane, normal, and point
@@ -174,33 +177,25 @@
             ez.clear()
             ez.ctx.globalAlpha = ez.smoothVar("showPlane", data["Show plane [S]"] ? 1 : 0, 250)
             ez.camera = ez.camera.rotated(vec3(0, 0, 1), rotatedAng)
-            ez.line([-1.5, 0], [1.5, 0]).stroke("grey", { lineWidth: 4 });
+            ez.line([-1.5 * transformScale.x, 0], [1.5 * transformScale.x, 0]).stroke("grey", { lineWidth: 4 });
+            ez.arrow(vec2(0, 0), vec2(0, 1 * transformScale.y), 10).fillAndStroke("black", "black", { lineWidth: 2, lineJoin: "round" })
 
-            // Draw point/arrow
-            ez.arrow(vec2(0, 0), vec2(0, 1), 10).fillAndStroke("black", "black", { lineWidth: 2, lineJoin: "round" })
-            if (data["Draw point as arrow instead [A]"]) {
-                ez.arrow(vec2(0, 0), pt, 5).fillAndStroke("black", "black")
-            }
-            else {
-                ez.circle(pt, 0.06).fillAndStroke("black", "lightblue");
-            }
-
+            // Draw point
+            ez.circle(pt.scaled(transformScale), 0.06).fillAndStroke("black", "lightblue");
 
             ez.save()
             ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords");
-            ez.arrow(vec2(0, 0), vec2(0, 1), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
-            ez.arrow(vec2(0, 0), vec2(1, 0), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
+            ez.arrow(vec2(0, 0), vec2(0, 1).scaled(transformScale), 15).fillAndStroke("green", "green", { lineWidth: 2, lineJoin: "round" })
+            ez.arrow(vec2(0, 0), vec2(1, 0).scaled(transformScale), 15).fillAndStroke("red", "red", { lineWidth: 2, lineJoin: "round" })
             ez.restore()
 
             ez.restore()
 
             ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords", data["Show transform.basis [B]"] ? 1 : 0, 250);
-            ez.text("transform.basis.y: (" + normalMainGrid.xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
-            ez.text("transform.basis.x: (" + normalMainGrid.multiply([-1, 1]).yx.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
+            ez.text("transform.basis.x: (" + normalMainGrid.scaled(transformScale).rotated(deg_to_rad(90)).xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
+            ez.text("transform.basis.y: (" + normalMainGrid.scaled(transformScale).xy.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
-            //ez.text("Position: ("+getPtPosMainGrid().xy.map(n => n.toFixed(1))+")", getPtPosMainGrid().add([0,0.5]), {fontStyle: "bold italic"}).fill()
-
 
             requestAnimationFrame(draw);
         }
