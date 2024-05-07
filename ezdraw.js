@@ -811,7 +811,7 @@ vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.ro
 vec2.prototype.floor = vec2.prototype.floored = function() { return vec2(Math.floor(this.x), Math.floor(this.y)); };
 vec2.prototype.ceil = vec2.prototype.ceiled = function() { return vec2(Math.ceil(this.x), Math.ceil(this.y)); };
 vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)); };
-vec2.prototype.set = vec2.prototype.set_equal_to = function(other) { this.x = vec2(other).x; this.y = vec2(other).y };
+vec2.prototype.set = vec2.prototype.set_equal_to = function(...other) { this.x = vec2(other).x; this.y = vec2(other).y };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them
     let xb = vec2(Math.cos(angle), Math.sin(angle));
@@ -824,7 +824,7 @@ vec2.prototype.rotated = function(angle) {
     //);
 }
 vec2.prototype.angle = function() { return Math.atan2(...this.normalized().yx) }
-vec2.prototype.perpendicular_dot = function(other) {
+vec2.prototype.perpendicular_dot = function(...other) {
     other = vec2(other);
     return this.x * other.y + this.y * -other.x;
     return this.x * other.y - this.y * other.x; // Same as above. Also same as the z component of vec3 cross
@@ -898,7 +898,7 @@ function vec4(...args) {
         yield this.w;
     };
 }
-vec4.prototype.set = vec4.prototype.set_equal_to = function(other) { this.x = vec4(other).x; this.y = vec4(other).y; this.z = vec4(other).z; this.w = vec4(other).w };
+vec4.prototype.set = vec4.prototype.set_equal_to = function(...other) { this.x = vec4(other).x; this.y = vec4(other).y; this.z = vec4(other).z; this.w = vec4(other).w };
 
 vec3.prototype.duplicate = function() { return vec4(this.x, this.y, this.z, this.w); }
 
@@ -1400,7 +1400,11 @@ function tryVecToArray(vec) {
     if (typeof(vec[Symbol.iterator])==='function') {
         return [...vec].map(v => {
             if (typeof(v[Symbol.iterator])==='function') {
-                return [...v] // Also unwrap nested vec2s... Do we want this? I think so but I forget my reasoning here... Allows for more flexible argument passing.
+                // Also unwrap nested vecs... Do we want this? I think so but I forget my reasoning here... Allows for more flexible argument passing.
+                // I think some of the code for vectors might depend on this. Or I think all of them call .map on their args with tryVecToArray anyway so might not matter.
+                // I think my reasoning was if passing vec2.add(another vec2) but since I changed it to ...args spread format it would break on simple .add(vec2()) case.
+                // But yeah I call .map anyway so it shouldn't matter. And the only place I use this is in the vec2, vec3, and vec4 constructors so it shouldn't matter.
+                return [...v]
             } else return v
         }).flat(Infinity)
     }

@@ -191,14 +191,14 @@
             ez.restore()
 
             if (data["Show point position [P]"]) {
-                ez.text("Position: (" + getPtPosMainGrid(transformScale).xy.map(n => n.toFixed(1)) + ")", pt.scaled(transformScale).add(vec2(0,.25).rotated(-rotatedAng)), { fontStyle: "bold", textAlign: "center" }).fill("black")
+                ez.text("Position: (" + getPtPosMainGrid(transformScale).xy.map(n => (Math.round(n*10)/10).toFixed(1)) + ")", pt.scaled(transformScale).add(vec2(0,.25).rotated(-rotatedAng)), { fontStyle: "bold", textAlign: "center" }).fill("black")
             }
 
             ez.restore()
 
             ez.ctx.globalAlpha = ez.smoothVar("showBasisCoords", data["Show transform.basis [B]"] ? 1 : 0, 250);
-            ez.text("transform.basis.x: (" + normalMainGrid.scaled(transformScale.x).rotated(deg_to_rad(-90)).xy.map(n => n.toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
-            ez.text("transform.basis.y: (" + normalMainGrid.scaled(transformScale.y).xy.map(n => n.toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
+            ez.text("transform.basis.x: (" + normalMainGrid.scaled(transformScale.x).rotated(deg_to_rad(-90)).xy.map(n => (Math.round(n*10)/10).toFixed(1)) + ")", [-2, 2], { fontStyle: "bold italic", textAlign: "right" }).fill("red")
+            ez.text("transform.basis.y: (" + normalMainGrid.scaled(transformScale.y).xy.map(n => (Math.round(n*10)/10).toFixed(1)) + ")", [-2, 1.5], { fontStyle: "bold italic", textAlign: "right" }).fill("green")
 
             ez.ctx.globalAlpha = (1.0 - showRotatedGrid);
 
