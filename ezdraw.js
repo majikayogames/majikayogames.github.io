@@ -511,21 +511,33 @@ ez.grid.prototype.stroke = function() {
 
 // line
 
-ez.line = function ezLine(startPos, endPos) {
-    if (!(this instanceof ezLine)) return new ezLine(startPos, endPos);
+ez.line = function ezLine(startPos, endPos, options) {
+    if (!(this instanceof ezLine)) return new ezLine(startPos, endPos, options);
     this.startPos = vec2(startPos);
     this.endPos = vec2(endPos);
+    this.options = options || {};
+
+    // Default options
+    this.lineDash = this.options.lineDash || [];
 };
 
 ez.line.prototype.stroke = function() {
-    // Transform start and end points using the camera matrix
+    // Transform start and end points to screen coordinates
     const transformedStart = ez.worldToScreen(vec3(this.startPos));
     const transformedEnd = ez.worldToScreen(vec3(this.endPos));
+
+    ez.save();
 
     ez.ctx.beginPath();
     ez.ctx.moveTo(transformedStart.x, transformedStart.y);
     ez.ctx.lineTo(transformedEnd.x, transformedEnd.y);
+
+    // Apply line styles
+    ez.ctx.setLineDash(this.lineDash);
+
     ez.ctx.stroke();
+
+    ez.restore();
 };
 
 // arrow
@@ -644,35 +656,60 @@ ez.text = function ezText(text, pos, options) {
     this.fontSize = this.options.fontSize || 16; // Default font size
     this.fontFamily = this.options.fontFamily || 'Arial'; // Default font family
     this.fontStyle = this.options.fontStyle || 'normal'; // Default font style
-    this.textAlign = this.options.textAlign || 'center'; // Default text align
-    this.textBaseline = this.options.textBaseline || 'alphabetic'; // Default text baseline
+    this.textAlign = this.options.textAlign || ez.ctx.textAlign; // Default text align
+    this.textBaseline = this.options.textBaseline || ez.ctx.textBaseline; // Default text baseline
+    this.lineHeight = this.options.lineHeight || this.fontSize * 1.2; // Default line height
+};
+
+ez.text.prototype.renderText = function(method) {
+    // Split the text into lines
+    const lines = this.text.split(/\r?\n/);
+
+    // Apply the text styles
+    ez.save();
+    ez.ctx.font = `${this.fontStyle} ${this.fontSize}px ${this.fontFamily}`;
+    ez.ctx.textAlign = this.textAlign;
+    ez.ctx.textBaseline = this.textBaseline; // Use the textBaseline from the options
+
+    // Transform the position to screen coordinates
+    const transformedPos = ez.worldToScreen(vec3(this.pos.x, this.pos.y, 0));
+
+    // Calculate the total height of the text block
+    const totalHeight = lines.length * this.lineHeight;
+
+    // Calculate start position Y based on textBaseline
+    let startY;
+    if (this.textBaseline === 'middle') {
+        startY = transformedPos.y - totalHeight / 2 + this.lineHeight / 2;
+    } else if (this.textBaseline === 'top') {
+        startY = transformedPos.y;
+    } else if (this.textBaseline === 'bottom') {
+        startY = transformedPos.y - totalHeight + this.lineHeight;
+    } else { // Default to alphabetic
+        startY = transformedPos.y - totalHeight / 2 + this.lineHeight / 2;
+    }
+
+    // Draw each line
+    lines.forEach(line => {
+        if (method === 'fill') {
+            ez.ctx.fillText(line, transformedPos.x, startY);
+        } else {
+            ez.ctx.strokeText(line, transformedPos.x, startY);
+        }
+        startY += this.lineHeight;
+    });
+
+    ez.restore();
 };
 
 ez.text.prototype.fill = function() {
-    // Apply the text styles
-    ez.ctx.font = `${this.fontStyle} ${this.fontSize}px ${this.fontFamily}`;
-    ez.ctx.textAlign = this.textAlign;
-    ez.ctx.textBaseline = this.textBaseline;
-
-    // Transform the position to screen coordinates
-    const transformedPos = ez.worldToScreen(vec3(this.pos.x, this.pos.y, 0));
-
-    // Fill the text
-    ez.ctx.fillText(this.text, transformedPos.x, transformedPos.y);
+    this.renderText('fill');
 };
 
 ez.text.prototype.stroke = function() {
-    // Apply the text styles
-    ez.ctx.font = `${this.fontStyle} ${this.fontSize}px ${this.fontFamily}`;
-    ez.ctx.textAlign = this.textAlign;
-    ez.ctx.textBaseline = this.textBaseline;
-
-    // Transform the position to screen coordinates
-    const transformedPos = ez.worldToScreen(vec3(this.pos.x, this.pos.y, 0));
-
-    // Stroke the text
-    ez.ctx.strokeText(this.text, transformedPos.x, transformedPos.y);
+    this.renderText('stroke');
 };
+
 
 // triangle
 
@@ -866,11 +903,13 @@ vec3.prototype.abs = function() { return vec3(Math.abs(this.x), Math.abs(this.y)
 vec3.prototype.set = vec3.prototype.set_equal_to = function(...other) { this.x = vec3(other).x; this.y = vec3(other).y; this.z = vec3(other).z };
 vec3.prototype.cross = function(...other) {
     other = vec3(other);
+    // Real cross product formula:
     return vec3(
         this.y * other.z - this.z * other.y,
         this.z * other.x - this.x * other.z,
         this.x * other.y - this.y * other.x
     );
+    // I think this is equivalent? was trying to figure out why
     return vec3(
         this.z * other.y - this.y * other.z,
         this.x * other.z - this.z * other.x,
@@ -878,11 +917,18 @@ vec3.prototype.cross = function(...other) {
     );
 };
 
+vec3.prototype.perpendicular = function() {
+    if(this.cross(1,0,0).length() > 0.001)
+        return this.cross(1,0,0).normalized()
+    else
+        return this.cross(0,1,0).normalized()
+}
+
 vec3.prototype.rotated = function(axis, angle) {
     let na = axis.normalized()
     // Rodrigues style formula, rotate only the perpendicular component of the vec3
-    let xb = vec3(na.y,na.x,na.z);
-    let yb = vec3(na.x,na.z,na.y);
+    let xb = this.perpendicular(); // Get any perpendicular vector to this vector
+    let yb = this.cross(xb); // Cross this vector & the other perpendicular vector. Now all are at a right angle and we have xy basis vectors
     vec2()
 }
 
