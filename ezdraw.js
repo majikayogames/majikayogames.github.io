@@ -1,5 +1,127 @@
 // License: CC0 public domain: https://creativecommons.org/publicdomain/zero/1.0/deed.en
 
+// Cheat sheet:
+
+/////////////////////////////////////////////////////////
+// EZ LIBRARY CHEAT SHEET
+/////////////////////////////////////////////////////////
+
+/*
+// Basic Setup and Canvas Operations
+ez.setCanvas(canvas)                    // Set the canvas element
+ez.clear(color)                         // Clear the canvas with optional background color
+ez.blitCanvas(otherCanvas)              // Blit another canvas onto the current canvas
+ez.createCanvasAndAddToPage(width, height) // Create a canvas and add it to the page
+
+// Save and Restore Context
+ez.save()                               // Save the current context state
+ez.restore()                            // Restore the last saved context state
+
+// Shapes and Drawing
+ez.circle(pos, radius)                  // Create a circle
+ez.rect(pos, size, rot, scale)          // Create a rectangle
+ez.capsule(pos, rot, length, radius1, radius2) // Create a capsule
+ez.image(url, pos, rot, scale)          // Create and draw an image
+ez.grid(cellSize, numCells)             // Create a grid
+ez.line(startPos, endPos, options)      // Create a line
+ez.arrow(startPos, endPos, arrowSize)   // Create an arrow
+ez.path(points, closed, smoothed, transform) // Create a path
+ez.text(text, pos, options)             // Create and render text
+ez.triangle(pos, points, colors)        // Create a triangle
+ez.quad(pos, points, colors)            // Create a quad
+
+// Input Handling
+ez.keys                                 // Object to track key states
+ez.mousePos                             // Current mouse position (vec2)
+ez.lastMousePos                         // Last mouse position
+ez.isMouseDown(button)                  // Check if a mouse button is down
+ez.isMouseUp(button)                    // Check if a mouse button is up
+ez.getMousePos()                        // Get current mouse position
+ez.getMousePosWorld()                   // Get current mouse position in world coordinates
+
+// Input Event Listeners
+ez.onKeyPress(key, callback)            // Add key press event listener
+ez.onKeyDown(key, callback)             // Add key down event listener
+ez.onKeyUp(key, callback)               // Add key up event listener
+ez.onMouseMove(callback)                // Add mouse move event listener
+ez.onMouseDown(callback)                // Add mouse down event listener
+ez.onMouseUp(callback)                  // Add mouse up event listener
+ez.onMouseDrag(callback)                // Add mouse drag event listener
+ez.onMouseDragEnd(callback)             // Add mouse drag end event listener
+ez.onMouseLeave(callback)               // Add mouse leave event listener
+ez.onMouseWheel(callback)               // Add mouse wheel event listener
+
+// Math and Utility Functions
+vec2(x, y)                              // Create a 2D vector
+vec3(x, y, z)                           // Create a 3D vector
+vec4(x, y, z, w)                        // Create a 4D vector
+mat3(col1, col2, col3)                  // Create a 3x3 matrix
+mat4(col1, col2, col3, col4)            // Create a 4x4 matrix
+mat3x4(col1, col2, col3, col4)          // Create a 3x4 matrix
+
+// Vector Methods (vec2, vec3, vec4)
+.add(other)                             // Add another vector
+.sub(other)                             // Subtract another vector
+.dot(other)                             // Dot product with another vector
+.divide(other)                          // Divide by another vector
+.scale(other)                           // Scale by another vector
+.magnitude()                            // Magnitude of the vector
+.clone()                                // Clone the vector
+.normalized()                           // Normalize the vector
+.rounded()                              // Round the vector
+.floored()                              // Floor the vector
+.ceiled()                               // Ceil the vector
+.abs()                                  // Absolute value of the vector
+.set(other)                             // Set the vector to another vector
+.rotated(angle)                         // Rotate the vector by an angle
+.angle()                                // Get the angle of the vector
+.perpendicular()                        // Get a perpendicular vector
+
+// Matrix Methods (mat3, mat4, mat3x4)
+.multiply(otherMat)                     // Multiply with another matrix
+.multiplyVec3(vec)                      // Multiply with a 3D vector
+.multiplyVec4(vec)                      // Multiply with a 4D vector (mat4 only)
+.transpose()                            // Transpose the matrix
+.determinant()                          // Get the determinant of the matrix
+.inverse()                              // Get the inverse of the matrix
+
+// Shape Methods
+fill(color, ctxOptions)                 // Fill the shape with a color
+stroke(color, ctxOptions)               // Stroke the shape with a color
+fillAndStroke(fillColor, strokeColor, ctxOptions) // Fill and stroke the shape
+
+// World and Screen Transformations
+ez.worldToScreen(point, objectTransform) // Transform world coordinates to screen coordinates
+ez.screenToWorld(pos)                   // Transform screen coordinates to world coordinates
+
+// Color Parsing
+ez.parseColor(color)                    // Parse color to hex format
+ez.parseColorAsRGBAObj(color)           // Parse color to RGBA object
+
+// GUI Functions
+ez.gui(data, callbacks, options)        // Create a GUI for the data object
+ez.guiPalettes                          // Predefined color palettes for the GUI
+
+// Advanced Utilities
+ez.smoothVar(key, newValue, duration)   // Smoothly interpolate variable values over time
+ez.bresenhamLineConnect(pointA, pointB) // Generate points for a line between two points using Bresenham's algorithm
+ez.smoothPoints(points, options)        // Smooth a set of points
+ez.makeVecBarycentric(p, a, b, c)       // Convert a point to barycentric coordinates
+ez.drawTriangle(canvas, ctx, p0, p1, p2, color0, color1, color2) // Draw a triangle with color interpolation
+ez.createProjectionMatrix(fov, aspect, near, far) // Create a projection matrix
+ez._blitCanvasSizes                     // Predefined canvas sizes for optimized drawing
+ez._blitCanvasCache                     // Cache for optimized canvas drawing
+
+// Miscellaneous
+ez.centerOrigin                         // Center the origin of the canvas
+ez.useProjectionMatrix                  // Use a projection matrix for 3D transformations
+ez.projectionMatrixOverride             // Override the default projection matrix
+
+*/
+/////////////////////////////////////////////////////////
+
+
+
 if(!window.$) window.$ = (...args) => document.querySelector(...args)
 
 const ez = {
@@ -848,6 +970,8 @@ vec2.prototype.rounded = vec2.prototype.round = function() { return vec2(Math.ro
 vec2.prototype.floor = vec2.prototype.floored = function() { return vec2(Math.floor(this.x), Math.floor(this.y)); };
 vec2.prototype.ceil = vec2.prototype.ceiled = function() { return vec2(Math.ceil(this.x), Math.ceil(this.y)); };
 vec2.prototype.abs = function() { return vec2(Math.abs(this.x), Math.abs(this.y)); };
+vec2.prototype.min = function(other) { return vec2(Math.min(this.x, other.x), Math.min(this.y, other.y)); };
+vec2.prototype.max = function(other) { return vec2(Math.max(this.x, other.x), Math.max(this.y, other.y)); };
 vec2.prototype.set = vec2.prototype.set_equal_to = function(...other) { this.x = vec2(other).x; this.y = vec2(other).y };
 vec2.prototype.rotated = function(angle) {
     // get rotated x and y basis vectors and multiply this.x and this.y by them

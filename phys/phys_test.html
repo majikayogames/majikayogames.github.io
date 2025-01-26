@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Physics Test</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="../ezdraw.js"></script>
+    <script src="simple_phys_optimized.js"></script>
+    <script src="simple_phys_ezdraw_renderer.js"></script>
+    <script>
+        // Setup canvas with proper scaling (y is up, 100px = 1 unit)
+        let canvas = ez.createCanvasAndAddToPage()
+        ez.centerOrigin = true
+        ez.camera.setOrigin([0, 2.9, 10])
+        ez.camera = ez.camera.scaled(vec3(1/100, 1/-100, 1))
+
+        // Create physics world
+        let world = new PhysWorld()
+        
+        // Add ceiling
+        world.addStaticBox(0, 8, 20, 1)
+
+        function createDiamondChain(startX, length, size = 0.5, initialImpulse = vec2(0, 0)) {
+            const links = []
+            const sqrt2 = Math.sqrt(2)
+            const diagonal = size * sqrt2
+            const halfDiagonal = diagonal / 2
+            
+            for (let i = 0; i < length; i++) {
+                const y = 7.5 - halfDiagonal - (i * diagonal)
+                const box = world.addBox(startX, y, size, size)
+                box.rotation = Math.PI / 4
+                links.push(box)
+                
+                if (i > 0) {
+                    const jointPos = vec2(
+                        startX,
+                        7.5 - (i * diagonal)
+                    )
+                    world.addRevoluteJoint(links[i-1], box, jointPos)
+                } else {
+                    const anchorPos = vec2(startX, 7.5)
+                    world.addRevoluteJoint(
+                        {pos: anchorPos, isStatic: true},
+                        box,
+                        anchorPos
+                    )
+                }
+
+                // Apply initial impulse, stronger at the bottom of the chain
+                if (initialImpulse.length() > 0.00001) {
+                    // Scale impulse based on position in chain (stronger at bottom)
+                    const scaleFactor = (i + 1) / length
+                    const impulse = initialImpulse.scaled(scaleFactor)
+                    box.vel = impulse
+                }
+            }
+            return links
+        }
+
+        // Create single diamond chain with initial rightward impulse
+        createDiamondChain(0, 10, 0.5, vec2(5, 0))  // Initial impulse of 3 units to the right
+
+        function draw() {
+            ez.clear()
+            
+            // Draw grid for reference
+            ez.grid(1, 50).stroke(0xbbbbbb)
+            
+            // Draw coordinate axes
+            ez.ctx.lineWidth = 1.5
+            ez.line(vec2(0, -1000), vec2(0, 1000)).stroke("grey")
+            ez.line(vec2(-1000, 0), vec2(1000, 0)).stroke("grey")
+            
+            // Render physics objects
+            PhysRenderer.render(world)
+            
+            // Continue animation
+            requestAnimationFrame(draw)
+            
+            // Update physics
+            world.step(1/60)
+        }
+        
+        draw()
+
+        // Optional: Add keyboard controls to apply impulses
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    world.objects.forEach(obj => {
+                        if (!obj.isStatic) obj.vel = obj.vel.add(vec2(-1, 0))
+                    })
+                    break
+                case 'ArrowRight':
+                    world.objects.forEach(obj => {
+                        if (!obj.isStatic) obj.vel = obj.vel.add(vec2(1, 0))
+                    })
+                    break
+            }
+        })
+
+        PhysRenderer.initMouseControls(world)
+    </script>
+</body>
+</html>
