@@ -11,7 +11,7 @@
 </head>
 
 <body>
-    <script src="../ezdraw.js"></script>
+    <script src="ezdraw.js"></script>
     <script src="simple_phys_optimized.js"></script>
     <script src="simple_phys_ezdraw_renderer.js"></script>
     <script>
@@ -26,6 +26,11 @@
         
         // Add ceiling
         world.addStaticBox(0, 8, 20, 1)
+        // Add floor
+        //world.addStaticBox(0, -2, 20, 1)
+        //let box = world.addBox(4, 0, 1, 1)
+        //box.isStatic = false
+        //box.rotation = Math.PI / -8
 
         function createDiamondChain(startX, length, size = 0.5, initialImpulse = vec2(0, 0)) {
             const links = []
@@ -37,6 +42,7 @@
                 const y = 7.5 - halfDiagonal - (i * diagonal)
                 const box = world.addBox(startX, y, size, size)
                 box.rotation = Math.PI / 4
+                box.collidable = false  // Disable collisions for chain links
                 links.push(box)
                 
                 if (i > 0) {

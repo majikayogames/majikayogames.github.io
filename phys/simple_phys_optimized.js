@@ -1,5 +1,7 @@
 // Optimized 2D Physics Engine
 
+class ContactConstraint {}
+
 class PhysObject {
     constructor(x, y, width, height, isStatic = false) {
         this.pos = vec2(x, y);

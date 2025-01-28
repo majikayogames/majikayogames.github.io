@@ -135,9 +135,9 @@ class DistanceConstraint {
         if (K < 0.000001) return null
 
         // Calculate impulse magnitude with optional Baumgarte stabilization:
-        // When we solve the constraint for just velocity = 0 or C' = 0, positional errors slowly accumulate causing the chain to sag.
+        // When we solve the constraint for just relative velocity = 0 or C' = 0, positional errors slowly accumulate causing the chain to sag.
         // Because we are only looking at C' = 0, or the relative velocity of the constraint points, once they drift a little, they will stay apart forever.
-        // To do this, we can add a small time dependent bias value to the velocity error.
+        // To fix this, we can add a small time dependent bias value to the velocity error.
         // This will cause the velocity we apply to the constraint points to be a little bit larger than the velocity error,
         // making the constraint points overcorrect and drift back towards the starting position.
         const bias = useBaumgarte ? ((this.beta/dt) * C) : 0
@@ -165,6 +165,99 @@ class DistanceConstraint {
         }
         
         if (!this.objB.isStatic && this.objB.vel) {
+            this.objB.vel = this.objB.vel.add(impulse.scaled(invMassB))
+            this.objB.angularVel += invIB * rB.perpendicular_dot(impulse)
+        }
+    }
+}
+
+class ContactConstraint {
+    constructor(objA, objB, contactPoint, normal, restitution = 0.2) {
+        this.objA = objA
+        this.objB = objB
+        // Convert contact point to local coordinates for both objects
+        this.localA = objA.worldToLocal(contactPoint)
+        this.localB = objB.worldToLocal(contactPoint)
+        this.normal = normal  // Points from A to B
+        this.restitution = restitution
+        this.beta = 0.2  // Baumgarte stabilization factor
+    }
+
+    calculateConstraint() {
+        // Get world positions of constraint attachment points
+        const worldA = this.objA.localToWorld(this.localA)
+        const worldB = this.objB.localToWorld(this.localB)
+        
+        // Calculate penetration depth (negative means penetrating)
+        const delta = worldB.sub(worldA)
+        const C = delta.dot(this.normal)
+        
+        // If not penetrating, no constraint needed
+        if (C > 0) return null
+        
+        // Calculate velocities at contact points
+        const rA = this.localA.rotated(this.objA.rotation)
+        const rB = this.localB.rotated(this.objB.rotation)
+        const velA = this.objA.vel.add(vec2(-rA.y, rA.x).scaled(this.objA.angularVel))
+        const velB = this.objB.vel.add(vec2(-rB.y, rB.x).scaled(this.objB.angularVel))
+        const relVel = velB.sub(velA)
+        
+        return { worldA, worldB, rA, rB, normal: this.normal, C, relVel }
+    }
+
+    calculateImpulse(constraintData, dt, useBaumgarte = true) {
+        const { normal, C, relVel, rA, rB } = constraintData
+        
+        // Calculate inverse masses and inertias
+        const invMassA = this.objA.isStatic ? 0 : 1/this.objA.mass
+        const invMassB = this.objB.isStatic ? 0 : 1/this.objB.mass
+        const invIA = this.objA.isStatic ? 0 : 1/this.objA.inertia
+        const invIB = this.objB.isStatic ? 0 : 1/this.objB.inertia
+        
+        // Calculate effective mass
+        const rACrossN = rA.perpendicular_dot(normal)
+        const rBCrossN = rB.perpendicular_dot(normal)
+        const K = invMassA + invMassB + 
+                 invIA * rACrossN * rACrossN +
+                 invIB * rBCrossN * rBCrossN
+        
+        if (K < 0.000001) return null
+
+        // Calculate relative velocity along normal
+        const Jv = normal.dot(relVel)
+        
+        // Calculate bias term (Baumgarte stabilization)
+        const bias = useBaumgarte ? (this.beta/dt) * Math.min(0, C) : 0
+        
+        // Add restitution impulse when objects are separating
+        const restitutionTerm = (Jv < -1) ? -this.restitution * Jv : 0
+        
+        // Calculate impulse magnitude
+        const lambda = -(Jv + bias + restitutionTerm) / K
+        
+        // Clamp to ensure we only push objects apart, never pull them together
+        if (lambda < 0) return null
+        
+        return {
+            impulse: normal.scaled(lambda),
+            invMassA,
+            invMassB,
+            invIA,
+            invIB,
+            rA,
+            rB
+        }
+    }
+
+    applyImpulse(impulseData) {
+        const { impulse, invMassA, invMassB, invIA, invIB, rA, rB } = impulseData
+        
+        if (!this.objA.isStatic) {
+            this.objA.vel = this.objA.vel.sub(impulse.scaled(invMassA))
+            this.objA.angularVel -= invIA * rA.perpendicular_dot(impulse)
+        }
+        
+        if (!this.objB.isStatic) {
             this.objB.vel = this.objB.vel.add(impulse.scaled(invMassB))
             this.objB.angularVel += invIB * rB.perpendicular_dot(impulse)
         }

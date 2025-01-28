@@ -12,10 +12,10 @@ const PhysRenderer = {
 
     // Store assigned colors for dynamic bodies
     _objectColors: new WeakMap(),
-    
+
     // Counter for deterministic color assignment
     _objectCounter: 0,
-    
+
     // Pastel color palette for dynamic bodies
     _palette: [
         "#FFB3BA", // pink
@@ -40,12 +40,12 @@ const PhysRenderer = {
     // Get or assign a color for an object
     _getObjectColor(obj) {
         if (obj.isStatic) return this.colors.staticBody
-        
+
         let color = this._objectColors.get(obj)
         if (!color) {
             const hash = Math.abs(Math.floor(
-                (obj.pos.x * 1000) + 
-                (obj.pos.y * 2000) + 
+                (obj.pos.x * 1000) +
+                (obj.pos.y * 2000) +
                 this._objectCounter++
             ))
             color = this._palette[hash % this._palette.length]
@@ -63,11 +63,11 @@ const PhysRenderer = {
     // Add after reset() method
     initMouseControls(world) {
         this.world = world
-        
+
         ez.onMouseMove(() => {
             this._mousePos = ez.getMousePosWorld()
         })
-        
+
         ez.onMouseDown(() => {
             // TODO: Replace with proper hover detection
             const hoveredObject = this._findHoveredObject()
@@ -75,31 +75,31 @@ const PhysRenderer = {
                 this._grabObject(hoveredObject)
             }
         })
-        
+
         ez.onMouseUp(() => {
             this._releaseObject()
         })
     },
-    
+
     // Temporary hover detection (to be replaced)
     _findHoveredObject() {
         // Find the first object that contains the mouse position
-        return this.world.objects.find(obj => 
+        return this.world.objects.find(obj =>
             !obj.isStatic && obj.containsPoint(this._mousePos)
         )
     },
-    
+
     _grabObject(obj) {
         this._mouseObject = obj
-        
+
         // Create a static anchor point at mouse position
         const mouseAnchor = new PhysObject(
-            this._mousePos.x, 
+            this._mousePos.x,
             this._mousePos.y,
             0.1, 0.1,  // Small size
             true       // Static
         )
-        
+
         // Create distance constraint between mouse and object
         this._mouseConstraint = this.world.addConstraintAtPoint(
             mouseAnchor,
@@ -109,7 +109,7 @@ const PhysRenderer = {
             0.5         // Lower stiffness for smoother dragging
         )
     },
-    
+
     _releaseObject() {
         if (this._mouseConstraint) {
             // Remove constraint from world
@@ -117,7 +117,7 @@ const PhysRenderer = {
             if (index !== -1) {
                 this.world.constraints.splice(index, 1)
             }
-            
+
             this._mouseConstraint = null
             this._mouseObject = null
         }
@@ -139,16 +139,20 @@ const PhysRenderer = {
         // Update mouse interaction before rendering
         this.update()
 
+        // Then render all objects (so they appear on top of constraints)
+        for (const obj of world.objects) {
+            this.renderObjectShadow(obj)
+        }
+
+        for (const obj of world.objects) {
+            this.renderObject(obj)
+        }
+
         // First render all constraints
         if (world.constraints) {
             for (const constraint of world.constraints) {
                 this.renderConstraint(constraint)
             }
-        }
-
-        // Then render all objects (so they appear on top of constraints)
-        for (const obj of world.objects) {
-            this.renderObject(obj)
         }
 
         ez.restore()
@@ -162,18 +166,54 @@ const PhysRenderer = {
             [obj.width, obj.height],    // size
             obj.rotation               // rotation
         )
-
+        
+        ez.ctx.lineWidth = 1
         rect.fillAndStroke(fillColor + "EE", this.colors.outline)
     },
 
+    renderObjectShadow(obj) {
+        ez.ctx.save()
+
+        ez.ctx.shadowColor = ez.parseColor("rgba(0,0,0,0.55)");
+        ez.ctx.shadowBlur = 10;
+        ez.ctx.shadowOffsetX = 5;
+        ez.ctx.shadowOffsetY = 5;
+
+        ez.rect(
+            obj.pos,
+            [obj.width, obj.height],
+            obj.rotation
+        ).fill("rgba(0,0,0,0.2)")
+
+        ez.ctx.restore()
+    },
+
     renderConstraint(constraint) {
+        if (constraint instanceof ContactConstraint) {
+            // For contact constraints, show contact point and normal
+            const worldPosA = constraint.objA.localToWorld(constraint.localA)
+            const normalEnd = worldPosA.add(constraint.normal.scaled(0.2)) // Scale normal for visibility
+
+            const pointSize = 0.02  // Slightly larger than regular constraint points
+
+            // Draw contact point
+            ez.circle(worldPosA, pointSize)
+                .fillAndStroke("#FF6B6B", this.colors.outline)  // Red for contact points
+
+            // Draw normal direction
+            ez.line(worldPosA, normalEnd)
+                .stroke("#FF6B6B")  // Same red color
+
+            return
+        }
+
         // Calculate actual world positions of constraint attachment points
-        const worldPosA = constraint.objA.isStatic ? 
-            vec2(constraint.objA.pos).add(constraint.localA) : 
+        const worldPosA = constraint.objA.isStatic ?
+            vec2(constraint.objA.pos).add(constraint.localA) :
             constraint.objA.localToWorld(constraint.localA)
-            
-        const worldPosB = constraint.objB.isStatic ? 
-            vec2(constraint.objB.pos).add(constraint.localB) : 
+
+        const worldPosB = constraint.objB.isStatic ?
+            vec2(constraint.objB.pos).add(constraint.localB) :
             constraint.objB.localToWorld(constraint.localB)
 
         const pointSize = 0.015  // Size of constraint point indicators
@@ -187,14 +227,14 @@ const PhysRenderer = {
             // Line with points at ends for distance constraints
             ez.line(worldPosA, worldPosB)
                 .stroke(this.colors.constraint)
-            
+
             // Draw points at both attachment locations
             ez.circle(worldPosA, pointSize)
                 .fillAndStroke(this.colors.constraintPoint, this.colors.outline)
             ez.circle(worldPosB, pointSize)
                 .fillAndStroke(this.colors.constraintPoint, this.colors.outline)
         }
-        
+
         ez.ctx.lineWidth = 1
     },
 
