@@ -1,0 +1,3 @@
+[submodule "physics-tutorial"]
+	path = physics-tutorial
+	url = https://github.com/majikayogames/physics-tutorial
